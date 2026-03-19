@@ -19,5 +19,7 @@ RUN chmod +x scripts/wait_for_services.py
 
 EXPOSE 8000
 
-# Wait for dependencies then start Django via Daphne (ASGI)
+# Wait for dependencies then start Django
+# In free tier mode: skip Redis wait, run tasks synchronously
+# In production: wait for Redis, use gunicorn/daphne
 CMD ["sh", "-c", "python scripts/wait_for_services.py && python manage.py migrate --noinput && daphne -b 0.0.0.0 -p 8000 config.asgi:application"]
