@@ -123,11 +123,12 @@ USE_TZ = True
 
 # ── Static & Media ────────────────────────────────────────────────────────────
 STATIC_URL = "/static/"
-STATIC_ROOT = BASE_DIR / "staticfiles"
+STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles")
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "mediafiles"
 
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+STATICFILES_DIRS = []
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
