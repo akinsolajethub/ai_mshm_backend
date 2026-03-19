@@ -1,0 +1,59 @@
+### ═══════════════════════════════════════════════════════════════════════════
+###  AI-MSHM  –  Notifications Endpoints
+###  Base prefix: /api/v1/notifications/
+###
+###  Real-time updates via WebSocket:
+###    ws://localhost:8000/ws/notifications/?token=<access_token>
+###
+###  WebSocket actions the CLIENT can send:
+###    { "action": "mark_read", "notification_id": 123 }
+###    { "action": "mark_all_read" }
+###
+###  WebSocket events the SERVER emits:
+###    { "type": "new_notification",  "notification": {...} }
+###    { "type": "unread_count",      "count": 5 }
+###    { "type": "marked_read",       "notification_id": 123 }
+###    { "type": "all_marked_read",   "count": 5 }
+### ═══════════════════════════════════════════════════════════════════════════
+
+@baseUrl      = http://localhost:8000/api/v1
+@contentType  = application/json
+@accessToken  = PASTE_ACCESS_TOKEN_HERE
+
+
+### ──────────────────────────────────────────────────────────────────────────
+###  LIST all notifications  (paginated, newest first)
+### ──────────────────────────────────────────────────────────────────────────
+GET {{baseUrl}}/notifications/
+Authorization: Bearer {{accessToken}}
+
+### ──────────────────────────────────────────────────────────────────────────
+###  LIST unread notifications only
+### ──────────────────────────────────────────────────────────────────────────
+GET {{baseUrl}}/notifications/?unread_only=true
+Authorization: Bearer {{accessToken}}
+
+### ──────────────────────────────────────────────────────────────────────────
+###  GET unread count  (for badge in the UI)
+### ──────────────────────────────────────────────────────────────────────────
+GET {{baseUrl}}/notifications/unread-count/
+Authorization: Bearer {{accessToken}}
+
+### ──────────────────────────────────────────────────────────────────────────
+###  MARK a single notification as read
+###  Replace 1 with the notification id
+### ──────────────────────────────────────────────────────────────────────────
+PATCH {{baseUrl}}/notifications/1/read/
+Authorization: Bearer {{accessToken}}
+
+### ──────────────────────────────────────────────────────────────────────────
+###  MARK ALL as read
+### ──────────────────────────────────────────────────────────────────────────
+PATCH {{baseUrl}}/notifications/mark-all-read/
+Authorization: Bearer {{accessToken}}
+
+### ──────────────────────────────────────────────────────────────────────────
+###  DELETE a single notification
+### ──────────────────────────────────────────────────────────────────────────
+DELETE {{baseUrl}}/notifications/1/
+Authorization: Bearer {{accessToken}}

@@ -1,0 +1,106 @@
+### ═══════════════════════════════════════════════════════════════════════════
+###  AI-MSHM  –  Onboarding Endpoints
+###  Base prefix: /api/v1/onboarding/
+###
+###  Flow:  step/1 → step/2 → step/3 → step/4 → step/5 → step/6/rppg/ → complete/
+###  Each step is independent — submit in any order, re-submit to update.
+### ═══════════════════════════════════════════════════════════════════════════
+
+@baseUrl      = http://localhost:8000/api/v1
+@contentType  = application/json
+@accessToken  = PASTE_ACCESS_TOKEN_HERE
+
+
+### ──────────────────────────────────────────────────────────────────────────
+###  GET current onboarding profile  (all steps combined)
+### ──────────────────────────────────────────────────────────────────────────
+GET {{baseUrl}}/onboarding/profile/
+Authorization: Bearer {{accessToken}}
+
+### ──────────────────────────────────────────────────────────────────────────
+###  STEP 1 – Personal Info
+### ──────────────────────────────────────────────────────────────────────────
+PATCH {{baseUrl}}/onboarding/step/1/
+Content-Type: {{contentType}}
+Authorization: Bearer {{accessToken}}
+
+{
+  "full_name": "Sarah Johnson",
+  "age": 28,
+  "ethnicity": "white"
+}
+
+### ──────────────────────────────────────────────────────────────────────────
+###  STEP 2 – Physical Measurements  (BMI computed server-side)
+### ──────────────────────────────────────────────────────────────────────────
+PATCH {{baseUrl}}/onboarding/step/2/
+Content-Type: {{contentType}}
+Authorization: Bearer {{accessToken}}
+
+{
+  "height_cm": 165,
+  "weight_kg": 62
+}
+
+### ──────────────────────────────────────────────────────────────────────────
+###  STEP 3 – Skin Changes  (Acanthosis Nigricans)
+### ──────────────────────────────────────────────────────────────────────────
+PATCH {{baseUrl}}/onboarding/step/3/
+Content-Type: {{contentType}}
+Authorization: Bearer {{accessToken}}
+
+{
+  "has_skin_changes": false
+}
+
+### ──────────────────────────────────────────────────────────────────────────
+###  STEP 4 – Menstrual History
+### ──────────────────────────────────────────────────────────────────────────
+PATCH {{baseUrl}}/onboarding/step/4/
+Content-Type: {{contentType}}
+Authorization: Bearer {{accessToken}}
+
+{
+  "cycle_length_days": 28,
+  "periods_per_year": 12,
+  "cycle_regularity": "regular"
+}
+
+### ──────────────────────────────────────────────────────────────────────────
+###  STEP 5 – Wearable Setup  (use "none" to skip)
+### ──────────────────────────────────────────────────────────────────────────
+PATCH {{baseUrl}}/onboarding/step/5/
+Content-Type: {{contentType}}
+Authorization: Bearer {{accessToken}}
+
+{
+  "selected_wearable": "apple_watch"
+}
+
+### ──────────────────────────────────────────────────────────────────────────
+###  STEP 5 – Skip wearable
+### ──────────────────────────────────────────────────────────────────────────
+PATCH {{baseUrl}}/onboarding/step/5/
+Content-Type: {{contentType}}
+Authorization: Bearer {{accessToken}}
+
+{
+  "selected_wearable": "none"
+}
+
+### ──────────────────────────────────────────────────────────────────────────
+###  STEP 6 – rPPG Baseline  (mark as captured after frontend capture)
+### ──────────────────────────────────────────────────────────────────────────
+POST {{baseUrl}}/onboarding/step/6/rppg/
+Content-Type: {{contentType}}
+Authorization: Bearer {{accessToken}}
+
+{
+  "baseline_captured": true
+}
+
+### ──────────────────────────────────────────────────────────────────────────
+###  COMPLETE ONBOARDING  (call after all steps done)
+### ──────────────────────────────────────────────────────────────────────────
+POST {{baseUrl}}/onboarding/complete/
+Authorization: Bearer {{accessToken}}

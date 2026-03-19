@@ -1,0 +1,247 @@
+### ═══════════════════════════════════════════════════════════════════════════
+###  AI-MSHM  –  Centers Endpoints
+###  Base prefix: /api/v1/centers/
+###
+###  Roles involved:
+###    patient        → no access here (read-only via their own dashboard)
+###    clinician      → can create/read/update own ClinicianProfile
+###    hcc_admin      → manages their HCC (admin panel)
+###    fhc_admin      → manages their FHC (admin panel)
+###    admin          → full CRUD on all centers
+###
+###  PUBLIC endpoints (no token needed):
+###    GET /centers/hcc/   → list HCCs for dropdown in registration
+###    GET /centers/fhc/   → list FHCs for dropdown in registration
+### ═══════════════════════════════════════════════════════════════════════════
+
+@baseUrl        = http://localhost:8000/api/v1
+@contentType    = application/json
+
+# Tokens — fill in after login
+@accessToken         = PASTE_ACCESS_TOKEN_HERE
+@clinicianToken      = PASTE_CLINICIAN_TOKEN_HERE
+@adminToken          = PASTE_ADMIN_TOKEN_HERE
+
+
+### ══════════════════════════════════════════════════════════════════════
+###  PUBLIC — Center Dropdowns  (no auth needed)
+### ══════════════════════════════════════════════════════════════════════
+
+### List all active Health Care Centers  (for registration dropdown)
+GET {{baseUrl}}/centers/hcc/
+
+### List all active Federal Health Centers  (for registration dropdown)
+GET {{baseUrl}}/centers/fhc/
+
+
+### ══════════════════════════════════════════════════════════════════════
+###  CLINICIAN — Register  (new user flow)
+### ══════════════════════════════════════════════════════════════════════
+
+### 1. Register as clinician
+POST {{baseUrl}}/auth/register/
+Content-Type: {{contentType}}
+
+{
+  "full_name": "Dr. Amara Nwosu",
+  "email": "dr.amara@clinic.com",
+  "password": "Secure1234!",
+  "confirm_password": "Secure1234!",
+  "role": "clinician"
+}
+
+### 2. Verify email (paste token from email)
+# POST {{baseUrl}}/auth/verify-email/
+# { "token": "PASTE_TOKEN" }
+
+### 3. Login as clinician
+# @name clinicianLogin
+POST {{baseUrl}}/auth/login/
+Content-Type: {{contentType}}
+
+{
+  "email": "clinician@demo.com",
+  "password": "Demo1234!"
+}
+
+
+### ══════════════════════════════════════════════════════════════════════
+###  CLINICIAN — Own Profile  (requires clinician role)
+### ══════════════════════════════════════════════════════════════════════
+
+### GET own clinician profile
+GET {{baseUrl}}/centers/clinician/profile/
+Authorization: Bearer {{clinicianToken}}
+
+### ──────────────────────────────────────────────────────────────────────
+### CREATE clinician profile  –  link to a Health Care Center (HCC)
+###   First call GET /centers/hcc/ to find the hcc id
+POST {{baseUrl}}/centers/clinician/profile/
+Content-Type: {{contentType}}
+Authorization: Bearer {{clinicianToken}}
+
+{
+  "specialization": "obstetrics_gynae",
+  "license_number": "MDCN-2019-54321",
+  "years_of_experience": 8,
+  "bio": "Specialist in reproductive health and PCOS management.",
+  "center_type": "hcc",
+  "hcc": 1
+}
+
+### ──────────────────────────────────────────────────────────────────────
+### CREATE clinician profile  –  link to a Federal Health Center (FHC)
+POST {{baseUrl}}/centers/clinician/profile/
+Content-Type: {{contentType}}
+Authorization: Bearer {{clinicianToken}}
+
+{
+  "specialization": "internal_medicine",
+  "license_number": "MDCN-2018-11111",
+  "years_of_experience": 12,
+  "bio": "Senior physician at federal level.",
+  "center_type": "fhc",
+  "fhc": 1
+}
+
+### ──────────────────────────────────────────────────────────────────────
+### UPDATE clinician profile  (partial – send only changed fields)
+PATCH {{baseUrl}}/centers/clinician/profile/
+Content-Type: {{contentType}}
+Authorization: Bearer {{clinicianToken}}
+
+{
+  "bio": "Updated professional bio.",
+  "years_of_experience": 9
+}
+
+
+### ══════════════════════════════════════════════════════════════════════
+###  ADMIN — Health Care Center  (requires is_staff=True)
+### ══════════════════════════════════════════════════════════════════════
+
+### List all HCCs (admin sees inactive too)
+GET {{baseUrl}}/centers/admin/hcc/
+Authorization: Bearer {{adminToken}}
+
+### ──────────────────────────────────────────────────────────────────────
+### Create a new HCC
+POST {{baseUrl}}/centers/admin/hcc/
+Content-Type: {{contentType}}
+Authorization: Bearer {{adminToken}}
+
+{
+  "name": "Surulere General Hospital",
+  "code": "SGH-001",
+  "state": "Lagos",
+  "lga": "Surulere",
+  "address": "5 Western Avenue, Surulere, Lagos",
+  "phone": "+2348011111111",
+  "email": "admin@sgh.gov.ng",
+  "status": "active",
+  "notify_on_severe": true,
+  "notify_on_very_severe": true
+}
+
+### ──────────────────────────────────────────────────────────────────────
+### Get HCC detail  (replace 1 with real id)
+GET {{baseUrl}}/centers/admin/hcc/1/
+Authorization: Bearer {{adminToken}}
+
+### ──────────────────────────────────────────────────────────────────────
+### Update HCC  (e.g. change notification settings)
+PATCH {{baseUrl}}/centers/admin/hcc/1/
+Content-Type: {{contentType}}
+Authorization: Bearer {{adminToken}}
+
+{
+  "notify_on_severe": true,
+  "notify_on_very_severe": true,
+  "status": "active"
+}
+
+### ──────────────────────────────────────────────────────────────────────
+### Deactivate HCC
+PATCH {{baseUrl}}/centers/admin/hcc/1/
+Content-Type: {{contentType}}
+Authorization: Bearer {{adminToken}}
+
+{
+  "status": "inactive"
+}
+
+### ──────────────────────────────────────────────────────────────────────
+### Delete HCC  ⚠️  Permanent
+DELETE {{baseUrl}}/centers/admin/hcc/1/
+Authorization: Bearer {{adminToken}}
+
+
+### ══════════════════════════════════════════════════════════════════════
+###  ADMIN — Federal Health Center
+### ══════════════════════════════════════════════════════════════════════
+
+### List all FHCs
+GET {{baseUrl}}/centers/admin/fhc/
+Authorization: Bearer {{adminToken}}
+
+### ──────────────────────────────────────────────────────────────────────
+### Create FHC
+POST {{baseUrl}}/centers/admin/fhc/
+Content-Type: {{contentType}}
+Authorization: Bearer {{adminToken}}
+
+{
+  "name": "Federal Medical Centre Kano",
+  "code": "FMC-KAN-001",
+  "state": "Kano",
+  "zone": "North West",
+  "address": "Hospital Road, Nassarawa, Kano",
+  "phone": "+2348022222222",
+  "email": "info@fmckano.gov.ng",
+  "status": "active"
+}
+
+### ──────────────────────────────────────────────────────────────────────
+### Get FHC detail
+GET {{baseUrl}}/centers/admin/fhc/1/
+Authorization: Bearer {{adminToken}}
+
+### ──────────────────────────────────────────────────────────────────────
+### Update FHC
+PATCH {{baseUrl}}/centers/admin/fhc/1/
+Content-Type: {{contentType}}
+Authorization: Bearer {{adminToken}}
+
+{
+  "status": "active"
+}
+
+### ──────────────────────────────────────────────────────────────────────
+### Delete FHC  ⚠️  Permanent
+DELETE {{baseUrl}}/centers/admin/fhc/1/
+Authorization: Bearer {{adminToken}}
+
+
+### ══════════════════════════════════════════════════════════════════════
+###  SIMULATING AN ESCALATION  (ML pipeline call — internal use)
+###
+###  This is called by the prediction service, not the frontend.
+###  Shown here for backend testing / verification.
+###
+###  Severity routing:
+###    mild / moderate  → patient notification only
+###    severe           → patient + clinician + HCC admin notified
+###    very_severe      → patient + clinician + HCC admin + FHC admin notified 🚨
+### ══════════════════════════════════════════════════════════════════════
+###  The function called internally:
+###
+###  from apps.centers.signals import notify_center_of_critical_risk
+###  from apps.centers.models import RiskSeverity
+###
+###  notify_center_of_critical_risk(
+###      patient=user_obj,
+###      condition="pcos",           # pcos | maternal | cardiovascular
+###      severity=RiskSeverity.VERY_SEVERE,
+###      score=91,
+###      previous_score=68,
+###  )

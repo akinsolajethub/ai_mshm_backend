@@ -1,0 +1,311 @@
+### ═══════════════════════════════════════════════════════════════════════════
+###  AI-MSHM  –  Check-in & Prediction Endpoints
+###  Base prefixes:
+###    /api/v1/checkin/
+###    /api/v1/predictions/
+###
+###  DAILY FLOW:
+###    Morning:   start session → POST morning data → submit HRV → submit session
+###    Evening:   start session → POST evening data → submit HRV → submit session
+###    After evening submit: prediction is auto-queued via Celery
+###    Weekly:    POST mFG hirsutism assessment
+### ═══════════════════════════════════════════════════════════════════════════
+
+@baseUrl       = http://localhost:8000/api/v1
+@contentType   = application/json
+@accessToken   = PASTE_PATIENT_ACCESS_TOKEN_HERE
+
+# These are set after "start session" calls below
+@morningSessionId   = PASTE_AFTER_START
+@eveningSessionId   = PASTE_AFTER_START
+
+
+### ══════════════════════════════════════════════════════════════════════
+###  DASHBOARD — Today's Status
+### ══════════════════════════════════════════════════════════════════════
+
+### Get today's check-in status (call this when app opens)
+GET {{baseUrl}}/checkin/today/
+Authorization: Bearer {{accessToken}}
+
+# Returns:
+# {
+#   "morning_status": "pending|partial|complete|missed",
+#   "evening_status": "pending|partial|complete|missed",
+#   "completeness_pct": 33,
+#   "streak_days": 5,
+#   "missed_yesterday_morning": false,
+#   "missed_yesterday_evening": false,
+#   "morning_session_id": "<uuid>",
+#   "evening_session_id": "<uuid>"
+# }
+
+
+### ══════════════════════════════════════════════════════════════════════
+###  MORNING CHECK-IN FLOW
+### ══════════════════════════════════════════════════════════════════════
+
+### STEP 1: Start morning session (call on screen open — idempotent)
+# @name startMorning
+POST {{baseUrl}}/checkin/session/start/
+Content-Type: {{contentType}}
+Authorization: Bearer {{accessToken}}
+
+{
+  "period": "morning",
+  "checkin_date": "2026-03-17"
+}
+
+### STEP 2: Auto-save morning data as sliders change
+###         (call on every slider change — partial save, not complete)
+POST {{baseUrl}}/checkin/morning/{{morningSessionId}}/
+Content-Type: {{contentType}}
+Authorization: Bearer {{accessToken}}
+
+{
+  "fatigue_vas": 6.5,
+  "pelvic_pressure_vas": 3.0,
+  "psq_skin_sensitivity": 4.0,
+  "psq_muscle_pressure_pain": 5.0,
+  "psq_body_tenderness": 3.5
+}
+
+# Returns computed hyperalgesia_index and hyperalgesia_severity automatically:
+# {
+#   "hyperalgesia_index": 4.167,
+#   "hyperalgesia_severity": "Mild",
+#   ...
+# }
+
+### STEP 3: Mark session as partially saved (auto-save heartbeat)
+POST {{baseUrl}}/checkin/session/{{morningSessionId}}/autosave/
+Authorization: Bearer {{accessToken}}
+
+### STEP 4: Submit HRV capture result (after rPPG camera session)
+POST {{baseUrl}}/checkin/hrv/
+Content-Type: {{contentType}}
+Authorization: Bearer {{accessToken}}
+
+{
+  "session_id": "{{morningSessionId}}",
+  "hrv_sdnn_ms": 42.5,
+  "hrv_rmssd_ms": 38.2,
+  "skipped": false
+}
+
+### STEP 4b: Skip HRV capture
+POST {{baseUrl}}/checkin/hrv/
+Content-Type: {{contentType}}
+Authorization: Bearer {{accessToken}}
+
+{
+  "session_id": "{{morningSessionId}}",
+  "skipped": true
+}
+
+### STEP 5: Complete morning session
+POST {{baseUrl}}/checkin/session/{{morningSessionId}}/submit/
+Authorization: Bearer {{accessToken}}
+
+# Returns DailyCheckinSummary — shows completeness_pct, morning_complete=true, etc.
+
+
+### GET morning data for a session (for re-hydrating screen state)
+GET {{baseUrl}}/checkin/morning/{{morningSessionId}}/
+Authorization: Bearer {{accessToken}}
+
+
+### ══════════════════════════════════════════════════════════════════════
+###  EVENING CHECK-IN FLOW
+### ══════════════════════════════════════════════════════════════════════
+
+### STEP 1: Start evening session
+# @name startEvening
+POST {{baseUrl}}/checkin/session/start/
+Content-Type: {{contentType}}
+Authorization: Bearer {{accessToken}}
+
+{
+  "period": "evening",
+  "checkin_date": "2026-03-17"
+}
+
+### STEP 2: Save evening data — Mastalgia + GAGS Acne + Bloating
+###  GAGS cofactors applied server-side:
+###    Forehead×2, R.Cheek×2, L.Cheek×2, Nose×1, Chin×1, Chest/Back×3
+POST {{baseUrl}}/checkin/evening/{{eveningSessionId}}/
+Content-Type: {{contentType}}
+Authorization: Bearer {{accessToken}}
+
+{
+  "breast_left_vas": 6.0,
+  "breast_right_vas": 7.0,
+  "mastalgia_side": "Bilateral",
+  "mastalgia_quality": "Dull",
+  "acne_forehead": 2,
+  "acne_right_cheek": 1,
+  "acne_left_cheek": 1,
+  "acne_nose": 0,
+  "acne_chin": 1,
+  "acne_chest_back": 2,
+  "bloating_delta_cm": 2.5,
+  "unusual_bleeding": false
+}
+
+# Server returns computed values automatically:
+# {
+#   "breast_pain_avg": 6.5,
+#   "cyclic_mastalgia_score": 6.5,        (avg×1 since avg≤7)
+#   "breast_soreness_vas": 3.25,          (CMS/2, normalised to 0-10)
+#   "mastalgia_severity": "Moderate",
+#   "gags_score": 19,                     (2×2+1×2+1×2+0×1+1×1+2×3 = 4+2+2+0+1+6=15... )
+#   "acne_severity_likert": 1.295,        (gags/44×3)
+#   "acne_severity_label": "Moderate"
+# }
+
+### STEP 3: Complete evening session
+###  → Triggers DailyCheckinSummary assembly
+###  → Triggers Celery prediction task if morning also complete
+POST {{baseUrl}}/checkin/session/{{eveningSessionId}}/submit/
+Authorization: Bearer {{accessToken}}
+
+
+### GET evening data (to restore screen state)
+GET {{baseUrl}}/checkin/evening/{{eveningSessionId}}/
+Authorization: Bearer {{accessToken}}
+
+
+### ══════════════════════════════════════════════════════════════════════
+###  WEEKLY — mFG Hirsutism Assessment
+###  9 body areas, 0–4 each
+###  Total = sum of all 9 areas (max 36)
+###  Severity: Normal 0–7 | Mild 8–16 | Moderate 17–24 | Severe ≥25
+### ══════════════════════════════════════════════════════════════════════
+
+### Submit weekly hirsutism assessment
+POST {{baseUrl}}/checkin/mfg/
+Content-Type: {{contentType}}
+Authorization: Bearer {{accessToken}}
+
+{
+  "mfg_upper_lip": 2,
+  "mfg_chin": 1,
+  "mfg_chest": 1,
+  "mfg_upper_back": 0,
+  "mfg_lower_back": 1,
+  "mfg_upper_abdomen": 2,
+  "mfg_lower_abdomen": 2,
+  "mfg_upper_arm": 0,
+  "mfg_thigh": 1
+}
+
+# Server returns computed mfg_total_score=10, mfg_severity="Mild"
+
+### Get latest mFG score
+GET {{baseUrl}}/checkin/mfg/
+Authorization: Bearer {{accessToken}}
+
+
+### ══════════════════════════════════════════════════════════════════════
+###  HISTORY & SUMMARIES
+### ══════════════════════════════════════════════════════════════════════
+
+### Get paginated check-in history (all daily summaries)
+GET {{baseUrl}}/checkin/history/
+Authorization: Bearer {{accessToken}}
+
+### Get a specific day's summary
+GET {{baseUrl}}/checkin/summary/2026-03-17/
+Authorization: Bearer {{accessToken}}
+
+
+### ══════════════════════════════════════════════════════════════════════
+###  PREDICTIONS
+### ══════════════════════════════════════════════════════════════════════
+
+### Get latest prediction result (auto-run after each full day)
+GET {{baseUrl}}/predictions/latest/
+Authorization: Bearer {{accessToken}}
+
+# Returns:
+# {
+#   "status": "success",
+#   "data": {
+#     "infertility": {
+#       "score": 0.4821,
+#       "flag": true,
+#       "severity": "Moderate",
+#       "risk_prob": 0.6132,
+#       "message": "Elevated risk detected. A medical review is recommended."
+#     },
+#     "dysmenorrhea": { ... },
+#     "pmdd":         { ... },
+#     "t2d":          { ... },
+#     "cvd":          { ... },
+#     "endometrial":  { ... },
+#     "highest_risk": {
+#       "disease":  "Infertility",
+#       "severity": "Moderate",
+#       "message":  "Elevated risk detected..."
+#     },
+#     "symptom_burden_score": 4.21,
+#     "days_of_data": 14,
+#     "data_completeness_pct": 50.0
+#   }
+# }
+
+### Get prediction history
+GET {{baseUrl}}/predictions/history/
+Authorization: Bearer {{accessToken}}
+
+### Get a specific prediction
+GET {{baseUrl}}/predictions/PASTE_PREDICTION_UUID/
+Authorization: Bearer {{accessToken}}
+
+### Get raw feature vector used for a prediction (clinician audit)
+GET {{baseUrl}}/predictions/PASTE_PREDICTION_UUID/features/
+Authorization: Bearer {{accessToken}}
+
+### Manually trigger prediction (dev/testing only)
+POST {{baseUrl}}/predictions/trigger/
+Authorization: Bearer {{accessToken}}
+
+
+### ══════════════════════════════════════════════════════════════════════
+###  SEVERITY REFERENCE SCALES
+### ══════════════════════════════════════════════════════════════════════
+###
+###  DISEASE SEVERITY (all 6 diseases — from notebook):
+###    0.00–0.19  → Minimal   (no clinical concern)
+###    0.20–0.39  → Mild      (monitor — lifestyle guidance)
+###    0.40–0.59  → Moderate  (alert — medical review recommended)
+###    0.60–0.79  → Severe    (referral — specialist review required)
+###    0.80–1.00  → Extreme   (urgent — immediate clinical intervention)
+###
+###  GAGS ACNE SEVERITY:
+###    0          → None
+###    1–18       → Mild
+###    19–30      → Moderate
+###    31–38      → Severe
+###    >38        → Very Severe
+###    (max raw = 44 using cofactors: forehead×2, cheeks×2, nose×1, chin×1, chest/back×3)
+###
+###  mFG HIRSUTISM:
+###    0–7        → Normal
+###    8–16       → Mild Hirsutism
+###    17–24      → Moderate Hirsutism
+###    ≥25        → Severe Hirsutism
+###    (max = 36, 9 areas × 4 points each)
+###
+###  HYPERALGESIA INDEX (PSQ-3):
+###    (psq_skin + psq_muscle + psq_tenderness) / 3
+###    0–3.0      → Normal
+###    3.01–6.0   → Mild
+###    6.01–9.0   → Moderate
+###    9.01–10    → Severe
+###
+###  CYCLIC MASTALGIA:
+###    avg = (left + right) / 2
+###    score = avg × weight (weight: 0 if avg=0, 1 if avg≤7, 2 if avg>7)
+###    normalised breast_soreness_vas = min(score/2, 10)
+###    Severity: None | Mild (avg≤3.5) | Moderate (avg≤7) | Severe (avg>7)

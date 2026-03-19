@@ -1,0 +1,152 @@
+### ═══════════════════════════════════════════════════════════════════════════
+###  AI-MSHM  –  Auth Endpoints
+###  Works with: VS Code REST Client extension  |  JetBrains HTTP Client
+###
+###  HOW TO USE:
+###    1. Copy .env.example → .env and fill in values
+###    2. Set @baseUrl below to match your dev server
+###    3. After login, paste the returned access token into @accessToken
+###    4. Click "Send Request" above any ### block
+### ═══════════════════════════════════════════════════════════════════════════
+
+@baseUrl    = http://localhost:8000/api/v1
+@contentType = application/json
+
+# After a successful login, paste the access token here:
+@accessToken  = PASTE_ACCESS_TOKEN_HERE
+@refreshToken = PASTE_REFRESH_TOKEN_HERE
+
+
+### ──────────────────────────────────────────────────────────────────────────
+###  1. REGISTER (Patient)
+### ──────────────────────────────────────────────────────────────────────────
+POST {{baseUrl}}/auth/register/
+Content-Type: {{contentType}}
+
+{
+  "full_name": "Sarah Johnson",
+  "email": "patient@demo.com",
+  "password": "Demo1234!",
+  "confirm_password": "Demo1234!",
+  "role": "patient"
+}
+
+### ──────────────────────────────────────────────────────────────────────────
+###  2. REGISTER (Clinician)
+### ──────────────────────────────────────────────────────────────────────────
+POST {{baseUrl}}/auth/register/
+Content-Type: {{contentType}}
+
+{
+  "full_name": "Dr. James Okafor",
+  "email": "clinician@demo.com",
+  "password": "Demo1234!",
+  "confirm_password": "Demo1234!",
+  "role": "clinician"
+}
+
+### ──────────────────────────────────────────────────────────────────────────
+###  3. VERIFY EMAIL
+###     Replace TOKEN with the raw token from the verification email link
+### ──────────────────────────────────────────────────────────────────────────
+POST {{baseUrl}}/auth/verify-email/
+Content-Type: {{contentType}}
+
+{
+  "token": "PASTE_VERIFICATION_TOKEN_HERE"
+}
+
+### ──────────────────────────────────────────────────────────────────────────
+###  4. RESEND VERIFICATION EMAIL
+### ──────────────────────────────────────────────────────────────────────────
+POST {{baseUrl}}/auth/resend-verification/
+Content-Type: {{contentType}}
+
+{
+  "email": "patient@demo.com"
+}
+
+### ──────────────────────────────────────────────────────────────────────────
+###  5. LOGIN → copies tokens to @accessToken / @refreshToken above
+### ──────────────────────────────────────────────────────────────────────────
+# @name login
+POST {{baseUrl}}/auth/login/
+Content-Type: {{contentType}}
+
+{
+  "email": "patient@demo.com",
+  "password": "Demo1234!"
+}
+
+### ──────────────────────────────────────────────────────────────────────────
+###  6. REFRESH ACCESS TOKEN
+### ──────────────────────────────────────────────────────────────────────────
+POST {{baseUrl}}/auth/token/refresh/
+Content-Type: {{contentType}}
+
+{
+  "refresh": "{{refreshToken}}"
+}
+
+### ──────────────────────────────────────────────────────────────────────────
+###  7. LOGOUT  (blacklists refresh token)
+### ──────────────────────────────────────────────────────────────────────────
+POST {{baseUrl}}/auth/logout/
+Content-Type: {{contentType}}
+Authorization: Bearer {{accessToken}}
+
+{
+  "refresh": "{{refreshToken}}"
+}
+
+### ──────────────────────────────────────────────────────────────────────────
+###  8. FORGOT PASSWORD  (triggers reset email)
+### ──────────────────────────────────────────────────────────────────────────
+POST {{baseUrl}}/auth/forgot-password/
+Content-Type: {{contentType}}
+
+{
+  "email": "patient@demo.com"
+}
+
+### ──────────────────────────────────────────────────────────────────────────
+###  9. RESET PASSWORD  (use token from reset email)
+### ──────────────────────────────────────────────────────────────────────────
+POST {{baseUrl}}/auth/reset-password/
+Content-Type: {{contentType}}
+
+{
+  "token": "PASTE_RESET_TOKEN_HERE",
+  "password": "NewPass1234!",
+  "confirm_password": "NewPass1234!"
+}
+
+### ──────────────────────────────────────────────────────────────────────────
+###  10. GET MY PROFILE
+### ──────────────────────────────────────────────────────────────────────────
+GET {{baseUrl}}/auth/me/
+Authorization: Bearer {{accessToken}}
+
+### ──────────────────────────────────────────────────────────────────────────
+###  11. UPDATE MY PROFILE  (name / avatar)
+### ──────────────────────────────────────────────────────────────────────────
+PATCH {{baseUrl}}/auth/me/
+Content-Type: {{contentType}}
+Authorization: Bearer {{accessToken}}
+
+{
+  "full_name": "Sarah J. Johnson"
+}
+
+### ──────────────────────────────────────────────────────────────────────────
+###  12. CHANGE PASSWORD  (authenticated)
+### ──────────────────────────────────────────────────────────────────────────
+POST {{baseUrl}}/auth/me/change-password/
+Content-Type: {{contentType}}
+Authorization: Bearer {{accessToken}}
+
+{
+  "old_password": "Demo1234!",
+  "new_password": "NewSecure1234!",
+  "confirm_password": "NewSecure1234!"
+}

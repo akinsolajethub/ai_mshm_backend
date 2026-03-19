@@ -1,0 +1,32 @@
+# ruff.toml
+# Fast Python linter — replaces flake8, isort, pyupgrade
+
+line-length = 100
+target-version = "py312"
+
+[lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "UP",  # pyupgrade
+    "B",   # bugbear
+    "C4",  # comprehensions
+    "SIM", # simplify
+]
+ignore = [
+    "E501",   # line too long (handled by formatter)
+    "B008",   # do not perform function calls in default arguments (DRF uses this)
+    "SIM108", # ternary operator (readability preference)
+]
+
+[lint.per-file-ignores]
+"*/migrations/*.py" = ["E501", "F401"]
+"*/tests/*.py"      = ["S101"]    # assert is fine in tests
+"conftest.py"       = ["F401"]
+"config/settings/*.py" = ["F401", "F403", "F405"]
+
+[lint.isort]
+known-first-party = ["apps", "core", "config"]
+force-sort-within-sections = true

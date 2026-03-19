@@ -1,0 +1,176 @@
+### ═══════════════════════════════════════════════════════════════════════════
+###  AI-MSHM  –  Settings Endpoints
+###  Base prefix: /api/v1/settings/
+### ═══════════════════════════════════════════════════════════════════════════
+
+@baseUrl      = http://localhost:8000/api/v1
+@contentType  = application/json
+@accessToken  = PASTE_ACCESS_TOKEN_HERE
+
+
+### ══════════════════════════════════════════════════════════
+###  NOTIFICATION PREFERENCES
+### ══════════════════════════════════════════════════════════
+
+### GET current notification preferences
+GET {{baseUrl}}/settings/notifications/
+Authorization: Bearer {{accessToken}}
+
+### ──────────────────────────────────────────────────────────
+### UPDATE notification preferences (partial – send only what changed)
+PATCH {{baseUrl}}/settings/notifications/
+Content-Type: {{contentType}}
+Authorization: Bearer {{accessToken}}
+
+{
+  "morning_time": "07:30",
+  "evening_time": "20:00",
+  "morning_checkin_enabled": true,
+  "evening_checkin_enabled": true,
+  "weekly_prompts_enabled": true,
+  "period_alerts_enabled": true,
+  "risk_score_updates_enabled": true,
+  "wearable_sync_reminders": false,
+  "do_not_disturb": false
+}
+
+### ──────────────────────────────────────────────────────────
+### TURN ON do-not-disturb only
+PATCH {{baseUrl}}/settings/notifications/
+Content-Type: {{contentType}}
+Authorization: Bearer {{accessToken}}
+
+{
+  "do_not_disturb": true
+}
+
+
+### ══════════════════════════════════════════════════════════
+###  CONNECTED DEVICES
+### ══════════════════════════════════════════════════════════
+
+### LIST connected devices
+GET {{baseUrl}}/settings/devices/
+Authorization: Bearer {{accessToken}}
+
+### ──────────────────────────────────────────────────────────
+### CONNECT Apple Watch
+POST {{baseUrl}}/settings/devices/
+Content-Type: {{contentType}}
+Authorization: Bearer {{accessToken}}
+
+{
+  "device_type": "apple_watch",
+  "device_name": "Apple Watch Series 9",
+  "sync_frequency": "15min",
+  "background_sync": true
+}
+
+### ──────────────────────────────────────────────────────────
+### CONNECT Fitbit
+POST {{baseUrl}}/settings/devices/
+Content-Type: {{contentType}}
+Authorization: Bearer {{accessToken}}
+
+{
+  "device_type": "fitbit",
+  "device_name": "Fitbit Sense 2",
+  "sync_frequency": "30min",
+  "background_sync": true
+}
+
+### ──────────────────────────────────────────────────────────
+### CONNECT Garmin
+POST {{baseUrl}}/settings/devices/
+Content-Type: {{contentType}}
+Authorization: Bearer {{accessToken}}
+
+{
+  "device_type": "garmin",
+  "device_name": "Garmin Forerunner 955",
+  "sync_frequency": "1h",
+  "background_sync": false
+}
+
+### ──────────────────────────────────────────────────────────
+### CONNECT Oura Ring
+POST {{baseUrl}}/settings/devices/
+Content-Type: {{contentType}}
+Authorization: Bearer {{accessToken}}
+
+{
+  "device_type": "oura_ring",
+  "device_name": "Oura Ring Gen 3",
+  "sync_frequency": "1h",
+  "background_sync": true
+}
+
+### ──────────────────────────────────────────────────────────
+### GET single device  (replace 1 with real id)
+GET {{baseUrl}}/settings/devices/1/
+Authorization: Bearer {{accessToken}}
+
+### ──────────────────────────────────────────────────────────
+### UPDATE device sync settings
+PATCH {{baseUrl}}/settings/devices/1/
+Content-Type: {{contentType}}
+Authorization: Bearer {{accessToken}}
+
+{
+  "sync_frequency": "5min",
+  "background_sync": true
+}
+
+### ──────────────────────────────────────────────────────────
+### TRIGGER MANUAL SYNC
+POST {{baseUrl}}/settings/devices/1/sync/
+Authorization: Bearer {{accessToken}}
+
+### ──────────────────────────────────────────────────────────
+### DISCONNECT a device
+DELETE {{baseUrl}}/settings/devices/1/
+Authorization: Bearer {{accessToken}}
+
+
+### ══════════════════════════════════════════════════════════
+###  PRIVACY SETTINGS
+### ══════════════════════════════════════════════════════════
+
+### GET privacy settings
+GET {{baseUrl}}/settings/privacy/
+Authorization: Bearer {{accessToken}}
+
+### ──────────────────────────────────────────────────────────
+### UPDATE privacy & consent settings (partial)
+PATCH {{baseUrl}}/settings/privacy/
+Content-Type: {{contentType}}
+Authorization: Bearer {{accessToken}}
+
+{
+  "behavioral_data_enabled": true,
+  "wearable_data_enabled": true,
+  "clinical_data_enabled": true,
+  "share_with_clinician": true,
+  "anonymized_research": false,
+  "model_improvement": true
+}
+
+### ──────────────────────────────────────────────────────────
+### TOGGLE research consent only
+PATCH {{baseUrl}}/settings/privacy/
+Content-Type: {{contentType}}
+Authorization: Bearer {{accessToken}}
+
+{
+  "anonymized_research": true
+}
+
+### ──────────────────────────────────────────────────────────
+### REQUEST DATA EXPORT  (queues email with download link)
+POST {{baseUrl}}/settings/privacy/export/
+Authorization: Bearer {{accessToken}}
+
+### ──────────────────────────────────────────────────────────
+### DELETE ACCOUNT  ⚠️  IRREVERSIBLE
+DELETE {{baseUrl}}/settings/privacy/delete-account/
+Authorization: Bearer {{accessToken}}
