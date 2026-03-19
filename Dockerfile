@@ -17,10 +17,7 @@ COPY . .
 # Make scripts executable
 RUN chmod +x scripts/wait_for_services.py
 
-# Collect static files for WhiteNoise
-RUN python manage.py collectstatic --noinput
-
 EXPOSE 8000
 
-# Wait for dependencies then start Django
-CMD ["sh", "-c", "python scripts/wait_for_services.py && python manage.py migrate --noinput && daphne -b 0.0.0.0 -p 8000 config.asgi:application"]
+# Wait for dependencies, collect static, migrate, then start Django
+CMD ["sh", "-c", "python scripts/wait_for_services.py && python manage.py collectstatic --noinput && python manage.py migrate --noinput && daphne -b 0.0.0.0 -p 8000 config.asgi:application"]
