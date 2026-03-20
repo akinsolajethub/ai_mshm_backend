@@ -1,11 +1,12 @@
 """
 apps/notifications/consumers.py
-────────────────────────────────
+───────────────────────────────
 WebSocket consumer for real-time in-app notifications.
 Each authenticated user connects to their personal channel group.
 
 Connection: ws(s)://host/ws/notifications/?token=<access_token>
 """
+
 import json
 import logging
 
@@ -21,31 +22,38 @@ def _user_group_name(user_id) -> str:
 
 
 class NotificationConsumer(AsyncWebsocketConsumer):
-
     async def connect(self):
-        user = self.scope.get("user")
+        try:
+            user = self.scope.get("user")
 
-        if not user or isinstance(user, AnonymousUser):
-            logger.warning("WebSocket connection rejected – unauthenticated")
-            await self.close(code=4001)
-            return
+            if not user or isinstance(user, AnonymousUser):
+                logger.warning("WebSocket connection rejected – unauthenticated")
+                await self.close(code=4001)
+                return
 
-        self.user     = user
-        self.group_name = _user_group_name(user.id)
+            self.user = user
+            self.group_name = _user_group_name(user.id)
 
-        await self.channel_layer.group_add(self.group_name, self.channel_name)
-        await self.accept()
+            await self.channel_layer.group_add(self.group_name, self.channel_name)
+            await self.accept()
 
-        # Send unread count immediately on connect
-        unread_count = await self._get_unread_count()
-        await self.send(text_data=json.dumps({"type": "unread_count", "count": unread_count}))
-        logger.info("WS connected: user=%s group=%s", user.email, self.group_name)
+            unread_count = await self._get_unread_count()
+            await self.send(text_data=json.dumps({"type": "unread_count", "count": unread_count}))
+            logger.info("WS connected: user=%s group=%s", user.email, self.group_name)
 
-    async def disconnect(self, close_code):
-        if hasattr(self, "group_name"):
-            await self.channel_layer.group_discard(self.group_name, self.channel_name)
+        except Exception as e:
+            logger.error("WS connect error (unexpected): %s", e, exc_info=True)
+            await self.close(code=4000)
 
-    async def receive(self, text_data):
+    async def disconnect(self, code):
+        try:
+            if hasattr(self, "group_name"):
+                await self.channel_layer.group_discard(self.group_name, self.channel_name)
+                logger.info("WS disconnected: group=%s code=%s", self.group_name, code)
+        except Exception as e:
+            logger.error("WS disconnect error: %s", e, exc_info=True)
+
+    async def receive(self, text_data=None, bytes_data=None):
         """Handle incoming messages from the client."""
         try:
             data = json.loads(text_data)
@@ -58,37 +66,50 @@ class NotificationConsumer(AsyncWebsocketConsumer):
             notification_id = data.get("notification_id")
             if notification_id:
                 await self._mark_notification_read(notification_id)
-                await self.send(text_data=json.dumps({
-                    "type": "marked_read",
-                    "notification_id": notification_id,
-                }))
+                await self.send(
+                    text_data=json.dumps(
+                        {
+                            "type": "marked_read",
+                            "notification_id": notification_id,
+                        }
+                    )
+                )
 
         elif action == "mark_all_read":
             count = await self._mark_all_read()
-            await self.send(text_data=json.dumps({
-                "type": "all_marked_read",
-                "count": count,
-            }))
-
-    # ── Group message handlers (called by channel layer) ──────────────────────
+            await self.send(
+                text_data=json.dumps(
+                    {
+                        "type": "all_marked_read",
+                        "count": count,
+                    }
+                )
+            )
 
     async def notification_message(self, event):
         """Relay a new notification pushed from server → this user's WebSocket."""
-        await self.send(text_data=json.dumps({
-            "type": "new_notification",
-            "notification": event["notification"],
-        }))
-
-    # ── DB helpers (sync → async) ─────────────────────────────────────────────
+        try:
+            await self.send(
+                text_data=json.dumps(
+                    {
+                        "type": "new_notification",
+                        "notification": event["notification"],
+                    }
+                )
+            )
+        except Exception as e:
+            logger.error("WS send error: %s", e, exc_info=True)
 
     @database_sync_to_async
     def _get_unread_count(self) -> int:
-        from .models import Notification
+        from apps.notifications.models import Notification
+
         return Notification.objects.filter(recipient=self.user, is_read=False).count()
 
     @database_sync_to_async
     def _mark_notification_read(self, notification_id: int):
-        from .models import Notification
+        from apps.notifications.models import Notification
+
         try:
             n = Notification.objects.get(id=notification_id, recipient=self.user)
             n.mark_read()
@@ -97,8 +118,9 @@ class NotificationConsumer(AsyncWebsocketConsumer):
 
     @database_sync_to_async
     def _mark_all_read(self) -> int:
-        from .models import Notification
+        from apps.notifications.models import Notification
         from django.utils import timezone
+
         qs = Notification.objects.filter(recipient=self.user, is_read=False)
         count = qs.count()
         qs.update(is_read=True, read_at=timezone.now())

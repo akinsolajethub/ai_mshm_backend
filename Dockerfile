@@ -17,7 +17,9 @@ COPY . .
 # Make scripts executable
 RUN chmod +x scripts/wait_for_services.py
 
+ENV DJANGO_SETTINGS_MODULE=config.settings.production
+
 EXPOSE 8000
 
-# Wait for dependencies, collect static, migrate, then start Django
+# Wait for dependencies, collect static, migrate, then start Django with ASGI (WebSocket support)
 CMD ["sh", "-c", "python scripts/wait_for_services.py && python manage.py collectstatic --noinput && python manage.py migrate --noinput && daphne -b 0.0.0.0 -p 8000 config.asgi:application"]
