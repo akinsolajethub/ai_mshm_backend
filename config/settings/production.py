@@ -45,13 +45,16 @@ CORS_ALLOW_METHODS = [
 ]
 
 # ── Email (Resend via django-anymail) ────────────────────────────────────────
-RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
-if RESEND_API_KEY:
-    EMAIL_BACKEND = "anymail.backends.resend.EmailBackend"
-    ANYMAIL = {
-        "RESEND_API_KEY": RESEND_API_KEY,
-    }
-DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "AI-MSHM <noreply@ai-mshm.com>")
+EMAIL_BACKEND = "anymail.backends.resend.EmailBackend"
+
+ANYMAIL = {
+    "RESEND_API_KEY": os.environ.get("RESEND_API_KEY", ""),
+}
+
+DEFAULT_FROM_EMAIL = os.environ.get(
+    "DEFAULT_FROM_EMAIL",
+    "AI-MSHM <noreply@devalyze.space>",
+)
 SERVER_EMAIL = DEFAULT_FROM_EMAIL
 
 # ── Security hardening ────────────────────────────────────────────────────────
