@@ -14,7 +14,10 @@ import dj_database_url
 BASE_DIR = Path(__file__).resolve().parent.parent.parent  # repo root
 
 # ── Security ──────────────────────────────────────────────────────────────────
-SECRET_KEY = config("SECRET_KEY")
+SECRET_KEY = config(
+    "SECRET_KEY",
+    default="django-insecure-build-time-placeholder-change-in-production",
+)
 DEBUG = config("DEBUG", default=False, cast=bool)
 ALLOWED_HOSTS = config("ALLOWED_HOSTS", default="localhost,127.0.0.1", cast=Csv())
 
@@ -185,7 +188,10 @@ SIMPLE_JWT = {
 }
 
 # ── Django Channels ───────────────────────────────────────────────────────────
-if config("USE_IN_MEMORY_CHANNELS", default="False") == "True":
+USE_IN_MEMORY_CHANNELS = config("USE_IN_MEMORY_CHANNELS", default="False") == "True"
+REDIS_URL = config("REDIS_URL", default="redis://localhost:6379")
+
+if USE_IN_MEMORY_CHANNELS:
     CHANNEL_LAYERS = {
         "default": {
             "BACKEND": "channels.layers.InMemoryChannelLayer",
@@ -195,7 +201,7 @@ else:
     CHANNEL_LAYERS = {
         "default": {
             "BACKEND": "channels_redis.core.RedisChannelLayer",
-            "CONFIG": {"hosts": [config("REDIS_URL")]},
+            "CONFIG": {"hosts": [REDIS_URL]},
         }
     }
 

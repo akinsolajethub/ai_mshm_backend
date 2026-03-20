@@ -19,6 +19,10 @@ RUN chmod +x scripts/wait_for_services.py
 
 ENV DJANGO_SETTINGS_MODULE=config.settings.production
 
+RUN SECRET_KEY=dummy-build-time-secret-key-not-used-in-production \
+    DJANGO_SETTINGS_MODULE=config.settings.production \
+    python manage.py collectstatic --noinput
+
 EXPOSE 8000
 
 # Wait for dependencies, collect static, migrate, then start Django with ASGI (WebSocket support)
