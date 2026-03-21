@@ -1,7 +1,79 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework import serializers
+from drf_spectacular.utils import extend_schema
 from .proxy import nodejs_get, nodejs_post
+
+
+class MenstrualLogCycleSerializer(serializers.Serializer):
+    period_start_date = serializers.DateField()
+    period_end_date = serializers.DateField()
+    bleeding_scores = serializers.ListField(
+        child=serializers.IntegerField(min_value=1, max_value=4),
+        help_text="One integer per day: 1=Spotting 2=Light 3=Medium 4=Heavy",
+    )
+    has_ovulation_peak = serializers.BooleanField()
+    unusual_bleeding = serializers.BooleanField()
+    rppg_ovulation_day = serializers.IntegerField(allow_null=True, required=False)
+
+
+class MoodLogPHQ4Serializer(serializers.Serializer):
+    phq4_item1 = serializers.IntegerField(
+        min_value=0, max_value=3, help_text="Nervous/anxious/on edge"
+    )
+    phq4_item2 = serializers.IntegerField(
+        min_value=0, max_value=3, help_text="Cannot stop worrying"
+    )
+    phq4_item3 = serializers.IntegerField(
+        min_value=0, max_value=3, help_text="Little interest or pleasure"
+    )
+    phq4_item4 = serializers.IntegerField(
+        min_value=0, max_value=3, help_text="Feeling down/depressed"
+    )
+    log_date = serializers.DateField(required=False, help_text="YYYY-MM-DD, defaults to today")
+
+
+class MoodLogAffectSerializer(serializers.Serializer):
+    affect_valence = serializers.IntegerField(
+        min_value=1, max_value=3, help_text="1=Negative 2=Neutral 3=Positive"
+    )
+    affect_arousal = serializers.IntegerField(
+        min_value=1, max_value=3, help_text="1=Low 2=Medium 3=High"
+    )
+    affect_quadrant = serializers.CharField(required=False)
+    log_date = serializers.DateField(required=False)
+
+
+class MoodLogFocusSerializer(serializers.Serializer):
+    cognitive_load_score = serializers.IntegerField(min_value=1, max_value=5)
+    focus_score = serializers.IntegerField(min_value=1, max_value=10, required=False)
+    memory_score = serializers.IntegerField(min_value=1, max_value=10, required=False)
+    mental_fatigue = serializers.IntegerField(min_value=1, max_value=10, required=False)
+    log_date = serializers.DateField(required=False)
+
+
+class MoodLogSleepSerializer(serializers.Serializer):
+    sleep_satisfaction = serializers.IntegerField(min_value=1, max_value=5)
+    hours_slept = serializers.FloatField(required=False)
+    log_date = serializers.DateField(required=False)
+
+
+class MoodLogCompleteSerializer(serializers.Serializer):
+    phq4_item1 = serializers.IntegerField(min_value=0, max_value=3)
+    phq4_item2 = serializers.IntegerField(min_value=0, max_value=3)
+    phq4_item3 = serializers.IntegerField(min_value=0, max_value=3)
+    phq4_item4 = serializers.IntegerField(min_value=0, max_value=3)
+    affect_valence = serializers.IntegerField(min_value=1, max_value=3)
+    affect_arousal = serializers.IntegerField(min_value=1, max_value=3)
+    affect_quadrant = serializers.CharField(required=False)
+    cognitive_load_score = serializers.IntegerField(min_value=1, max_value=5)
+    sleep_satisfaction = serializers.IntegerField(min_value=1, max_value=5)
+    hours_slept = serializers.FloatField(required=False)
+    cycle_phase = serializers.ChoiceField(
+        choices=["Menstrual", "Follicular", "Ovulatory", "Luteal"], required=False
+    )
+    log_date = serializers.DateField(required=False)
 
 
 # ─── MENSTRUAL CYCLE ENDPOINTS ──────────────────────────────────────────────
@@ -26,6 +98,11 @@ class MenstrualLogCycleView(APIView):
 
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        tags=["Menstrual"],
+        summary="Log a completed menstrual cycle",
+        request=MenstrualLogCycleSerializer,
+    )
     def post(self, request):
         data, status_code = nodejs_post(
             request.user.id,
@@ -49,6 +126,9 @@ class MenstrualPredictView(APIView):
 
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        tags=["Menstrual"], summary="Run 6-disease menstrual risk prediction (no body needed)"
+    )
     def post(self, request):
         data, status_code = nodejs_post(
             request.user.id,
@@ -67,6 +147,7 @@ class MenstrualHistoryView(APIView):
 
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(tags=["Menstrual"], summary="Get all stored menstrual cycles")
     def get(self, request):
         data, status_code = nodejs_get(
             request.user.id,
@@ -85,6 +166,9 @@ class MenstrualPredictionHistoryView(APIView):
 
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        tags=["Menstrual"], summary="Get last 20 menstrual prediction results for trend charts"
+    )
     def get(self, request):
         data, status_code = nodejs_get(
             request.user.id,
@@ -115,6 +199,9 @@ class MoodLogPHQ4View(APIView):
 
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        tags=["Mood"], summary="Log PHQ-4 mental wellness scores", request=MoodLogPHQ4Serializer
+    )
     def post(self, request):
         data, status_code = nodejs_post(
             request.user.id,
@@ -134,6 +221,11 @@ class MoodLogAffectView(APIView):
 
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        tags=["Mood"],
+        summary="Log Affect Grid — Arousal x Valence",
+        request=MoodLogAffectSerializer,
+    )
     def post(self, request):
         data, status_code = nodejs_post(
             request.user.id,
@@ -153,6 +245,9 @@ class MoodLogFocusView(APIView):
 
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        tags=["Mood"], summary="Log Cognitive Load and Focus score", request=MoodLogFocusSerializer
+    )
     def post(self, request):
         data, status_code = nodejs_post(
             request.user.id,
@@ -172,6 +267,9 @@ class MoodLogSleepView(APIView):
 
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        tags=["Mood"], summary="Log Sleep Quality and satisfaction", request=MoodLogSleepSerializer
+    )
     def post(self, request):
         data, status_code = nodejs_post(
             request.user.id,
@@ -193,6 +291,11 @@ class MoodLogCompleteView(APIView):
 
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        tags=["Mood"],
+        summary="Log all 4 mood components in one call — preferred method",
+        request=MoodLogCompleteSerializer,
+    )
     def post(self, request):
         data, status_code = nodejs_post(
             request.user.id,
@@ -219,9 +322,44 @@ class MoodPredictView(APIView):
 
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(tags=["Mood"], summary="Get 9-disease mood and cognitive risk scores")
     def get(self, request):
         data, status_code = nodejs_get(
             request.user.id,
             "/api/v1/predict/mood-cognitive/predict",
+        )
+        return Response(data, status=status_code)
+
+
+class MoodHistoryView(APIView):
+    """
+    Get mood log history for the authenticated user.
+    Proxied to: GET /api/v1/mood/history on Node.js
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(tags=["Mood"], summary="Get mood log history")
+    def get(self, request):
+        data, status_code = nodejs_get(
+            request.user.id,
+            "/api/v1/mood/history",
+        )
+        return Response(data, status=status_code)
+
+
+class MoodPredictLatestView(APIView):
+    """
+    Get latest mood predictions.
+    Proxied to: GET /api/v1/mood/predictions/latest on Node.js
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(tags=["Mood"], summary="Get latest mood predictions")
+    def get(self, request):
+        data, status_code = nodejs_get(
+            request.user.id,
+            "/api/v1/mood/predictions/latest",
         )
         return Response(data, status=status_code)

@@ -10,6 +10,8 @@ from .views import (
     MoodLogSleepView,
     MoodLogCompleteView,
     MoodPredictView,
+    MoodHistoryView,
+    MoodPredictLatestView,
 )
 
 urlpatterns = [
@@ -29,4 +31,8 @@ urlpatterns = [
     path("mood/log/sleep", MoodLogSleepView.as_view(), name="mood-log-sleep"),
     path("mood/log/complete", MoodLogCompleteView.as_view(), name="mood-log-complete"),
     path("mood/predict", MoodPredictView.as_view(), name="mood-predict"),
+    path("mood/history", MoodHistoryView.as_view(), name="mood-history"),
+    path(
+        "mood/predictions/latest", MoodPredictLatestView.as_view(), name="mood-predictions-latest"
+    ),
 ]
