@@ -363,3 +363,59 @@ class MoodPredictLatestView(APIView):
             "/api/v1/mood/predictions/latest",
         )
         return Response(data, status=status_code)
+
+
+class MoodPredictMentalHealthView(APIView):
+    """POST /api/v1/mood/predict/mental-health — Proxied to Node.js"""
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(tags=["Mood"], summary="Predict mental health risks")
+    def post(self, request):
+        data, status_code = nodejs_post(
+            request.user.id,
+            "/api/v1/mood/predict/mental-health",
+        )
+        return Response(data, status=status_code)
+
+
+class MoodPredictMetabolicView(APIView):
+    """POST /api/v1/mood/predict/metabolic — Proxied to Node.js"""
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(tags=["Mood"], summary="Predict metabolic risks")
+    def post(self, request):
+        data, status_code = nodejs_post(
+            request.user.id,
+            "/api/v1/mood/predict/metabolic",
+        )
+        return Response(data, status=status_code)
+
+
+class MoodPredictCardioNeuroView(APIView):
+    """POST /api/v1/mood/predict/cardio-neuro — Proxied to Node.js"""
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(tags=["Mood"], summary="Predict cardiovascular and neurological risks")
+    def post(self, request):
+        data, status_code = nodejs_post(
+            request.user.id,
+            "/api/v1/mood/predict/cardio-neuro",
+        )
+        return Response(data, status=status_code)
+
+
+class MoodPredictReproductiveView(APIView):
+    """POST /api/v1/mood/predict/reproductive — Proxied to Node.js"""
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(tags=["Mood"], summary="Predict reproductive risks")
+    def post(self, request):
+        data, status_code = nodejs_post(
+            request.user.id,
+            "/api/v1/mood/predict/reproductive",
+        )
+        return Response(data, status=status_code)

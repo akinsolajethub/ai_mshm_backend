@@ -12,6 +12,10 @@ from .views import (
     MoodPredictView,
     MoodHistoryView,
     MoodPredictLatestView,
+    MoodPredictMentalHealthView,
+    MoodPredictMetabolicView,
+    MoodPredictCardioNeuroView,
+    MoodPredictReproductiveView,
 )
 
 urlpatterns = [
@@ -34,5 +38,24 @@ urlpatterns = [
     path("mood/history", MoodHistoryView.as_view(), name="mood-history"),
     path(
         "mood/predictions/latest", MoodPredictLatestView.as_view(), name="mood-predictions-latest"
+    ),
+    # Mood prediction sub-routes
+    path(
+        "mood/predict/mental-health",
+        MoodPredictMentalHealthView.as_view(),
+        name="mood-predict-mental-health",
+    ),
+    path(
+        "mood/predict/metabolic", MoodPredictMetabolicView.as_view(), name="mood-predict-metabolic"
+    ),
+    path(
+        "mood/predict/cardio-neuro",
+        MoodPredictCardioNeuroView.as_view(),
+        name="mood-predict-cardio-neuro",
+    ),
+    path(
+        "mood/predict/reproductive",
+        MoodPredictReproductiveView.as_view(),
+        name="mood-predict-reproductive",
     ),
 ]
