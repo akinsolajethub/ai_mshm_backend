@@ -419,3 +419,214 @@ class MoodPredictReproductiveView(APIView):
             "/api/v1/mood/predict/reproductive",
         )
         return Response(data, status=status_code)
+
+
+# ─── MISSING MENSTRUAL ENDPOINTS ───────────────────────────────────────────────
+
+
+class MenstrualPredictFromLogsView(APIView):
+    """
+    Predict disease risk from raw user-logged cycle data (stateless).
+    Proxied to: POST /api/v1/menstrual/predict/from-logs on Node.js
+
+    Accepts raw per-cycle logs as the user provides them in the app.
+    Does NOT store cycles in the database — use POST /log-cycle for storage.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        tags=["Menstrual"],
+        summary="Predict disease risk from raw cycle data (stateless)",
+    )
+    def post(self, request):
+        data, status_code = nodejs_post(
+            request.user.id,
+            "/api/v1/menstrual/predict/from-logs",
+            body=request.data,
+        )
+        return Response(data, status=status_code)
+
+
+class MenstrualFeaturesView(APIView):
+    """
+    Get feature schema and descriptions.
+    Proxied to: GET /api/v1/menstrual/features on Node.js
+
+    Returns the feature schema with descriptions for all 10 model input features.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(tags=["Menstrual"], summary="Get feature schema and descriptions")
+    def get(self, request):
+        data, status_code = nodejs_get(
+            request.user.id,
+            "/api/v1/menstrual/features",
+        )
+        return Response(data, status=status_code)
+
+
+class MenstrualModelInfoView(APIView):
+    """
+    Get model metadata, diseases, and metrics.
+    Proxied to: GET /api/v1/menstrual/model-info on Node.js
+
+    Returns model information including diseases, flag thresholds, severity bins, and model metrics.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(tags=["Menstrual"], summary="Get model metadata, diseases, and metrics")
+    def get(self, request):
+        data, status_code = nodejs_get(
+            request.user.id,
+            "/api/v1/menstrual/model-info",
+        )
+        return Response(data, status=status_code)
+
+
+# ─── rPPG (HRV) ENDPOINTS ───────────────────────────────────────────────────────
+
+
+class RppgSessionSerializer(serializers.Serializer):
+    rmssd = serializers.IntegerField(min_value=5, max_value=300, help_text="RMSSD in milliseconds (5–300)")
+    mean_temp = serializers.FloatField(min_value=25, max_value=42, help_text="Mean skin temperature in °C (25–42)")
+    mean_eda = serializers.FloatField(min_value=0, max_value=20, help_text="Mean electrodermal activity in µS (0–20)")
+    asi = serializers.FloatField(min_value=0, max_value=2, allow_null=True, required=False, help_text="Autonomic Stress Index (0–1.58). Optional.")
+    session_type = serializers.ChoiceField(choices=["morning", "evening", "baseline", "checkin"], default="checkin", help_text="Type of check-in session.")
+    session_quality = serializers.ChoiceField(choices=["good", "poor", "motion_artifact"], allow_null=True, required=False, help_text="Signal quality flag from the device.")
+
+
+class RppgSessionView(APIView):
+    """
+    Log an rPPG (HRV) session.
+    Proxied to: POST /api/v1/rppg/session on Node.js
+
+    Call this after the user completes an rPPG measurement session.
+    """
+
+    permission_classes = [IsAuthenticated]
+    serializer_class = RppgSessionSerializer
+
+    @extend_schema(
+        tags=["rPPG"],
+        summary="Log an rPPG (HRV) session",
+        request=RppgSessionSerializer,
+    )
+    def post(self, request):
+        data, status_code = nodejs_post(
+            request.user.id,
+            "/api/v1/rppg/session",
+            body=request.data,
+        )
+        return Response(data, status=status_code)
+
+
+class RppgPredictMetabolicCardioView(APIView):
+    """
+    Predict metabolic and cardiovascular disease risks from rPPG data.
+    Proxied to: POST /api/v1/rppg/predict/metabolic-cardio on Node.js
+
+    Returns risk scores for: CVD, T2D, Metabolic, HeartFailure.
+    """
+
+    permission_classes = [IsAuthenticated]
+    serializer_class = serializers.Serializer  # No body needed for prediction
+
+    @extend_schema(
+        tags=["rPPG"],
+        summary="Predict metabolic and cardiovascular disease risks from rPPG data",
+    )
+    def post(self, request):
+        data, status_code = nodejs_post(
+            request.user.id,
+            "/api/v1/rppg/predict/metabolic-cardio",
+        )
+        return Response(data, status=status_code)
+
+
+class RppgPredictStressReproductiveView(APIView):
+    """
+    Predict stress and reproductive disease risks from rPPG data.
+    Proxied to: POST /api/v1/rppg/predict/stress-reproductive on Node.js
+
+    Returns risk scores for: Stress, Infertility.
+    """
+
+    permission_classes = [IsAuthenticated]
+    serializer_class = serializers.Serializer  # No body needed for prediction
+
+    @extend_schema(
+        tags=["rPPG"],
+        summary="Predict stress and reproductive disease risks from rPPG data",
+    )
+    def post(self, request):
+        data, status_code = nodejs_post(
+            request.user.id,
+            "/api/v1/rppg/predict/stress-reproductive",
+        )
+        return Response(data, status=status_code)
+
+
+class RppgPredictAnomalyView(APIView):
+    """
+    Run anomaly detection on rPPG data.
+    Proxied to: POST /api/v1/rppg/predict/anomaly on Node.js
+
+    Returns anomaly detection results for the rPPG session.
+    """
+
+    permission_classes = [IsAuthenticated]
+    serializer_class = serializers.Serializer  # No body needed for prediction
+
+    @extend_schema(
+        tags=["rPPG"],
+        summary="Run anomaly detection on rPPG data",
+    )
+    def post(self, request):
+        data, status_code = nodejs_post(
+            request.user.id,
+            "/api/v1/rppg/predict/anomaly",
+        )
+        return Response(data, status=status_code)
+
+
+class RppgSessionsView(APIView):
+    """
+    Get rPPG session history for the authenticated user.
+    Proxied to: GET /api/v1/rppg/sessions on Node.js
+
+    Use this to populate the rPPG measurement history.
+    """
+
+    permission_classes = [IsAuthenticated]
+    serializer_class = serializers.Serializer  # GET endpoint, no body
+
+    @extend_schema(tags=["rPPG"], summary="Get rPPG session history")
+    def get(self, request):
+        data, status_code = nodejs_get(
+            request.user.id,
+            "/api/v1/rppg/sessions",
+        )
+        return Response(data, status=status_code)
+
+
+class RppgPredictionsView(APIView):
+    """
+    Get rPPG prediction history for the authenticated user.
+    Proxied to: GET /api/v1/rppg/predictions on Node.js
+
+    Use this to populate the rPPG prediction trend charts.
+    """
+
+    permission_classes = [IsAuthenticated]
+    serializer_class = serializers.Serializer  # GET endpoint, no body
+
+    @extend_schema(tags=["rPPG"], summary="Get rPPG prediction history")
+    def get(self, request):
+        data, status_code = nodejs_get(
+            request.user.id,
+            "/api/v1/rppg/predictions",
+        )
+        return Response(data, status=status_code)

@@ -1,0 +1,121 @@
+[
+  {
+    "model": "accounts.user",
+    "pk": "a1d34c19-7c9d-4f84-8d57-2b2a6ddc8f6b",
+    "fields": {
+      "password": "pbkdf2_sha256$260000$8388c95373d43d5fbaa8daaf97acd583$9lE8Y77i79JiOLhZCtcl8fMVPu163tBcKZgzdzhPumY=",
+      "last_login": null,
+      "is_superuser": false,
+      "email": "owoadeshefiq12@gmail.com",
+      "full_name": "Owodase Fiq",
+      "is_staff": false,
+      "is_active": true,
+      "date_joined": "2024-01-01T10:00:00Z",
+      "is_email_verified": true,
+      "role": "patient",
+      "onboarding_completed": true,
+      "onboarding_step": 5,
+      "avatar": null,
+      "groups": [],
+      "user_permissions": []
+    }
+  },
+  {
+    "model": "health_checkin.checkinsession",
+    "pk": "5c2a0e70-8f42-4d43-980c-3bd7e7b5d3a9",
+    "fields": {
+      "user": "a1d34c19-7c9d-4f84-8d57-2b2a6ddc8f6b",
+      "period": "morning",
+      "status": "complete",
+      "checkin_date": "2026-03-10",
+      "cycle_phase": "Luteal",
+      "cycle_day": 14,
+      "hrv_sdnn_ms": 45.2,
+      "hrv_rmssd_ms": 52.8,
+      "hrv_captured_at": "2026-03-10T06:15:00Z",
+      "started_at": "2026-03-10T06:00:00Z",
+      "submitted_at": "2026-03-10T06:12:00Z",
+      "last_saved_at": "2026-03-10T06:12:00Z",
+      "missed_reminder_sent": false
+    }
+  },
+  {
+    "model": "health_checkin.checkinsession",
+    "pk": "dd09bf0d-5dee-4a53-a8f0-0dc39c2b4928",
+    "fields": {
+      "user": "a1d34c19-7c9d-4f84-8d57-2b2a6ddc8f6b",
+      "period": "evening",
+      "status": "complete",
+      "checkin_date": "2026-03-10",
+      "cycle_phase": "Luteal",
+      "cycle_day": 14,
+      "hrv_sdnn_ms": null,
+      "hrv_rmssd_ms": null,
+      "hrv_captured_at": null,
+      "started_at": "2026-03-10T18:45:00Z",
+      "submitted_at": "2026-03-10T19:00:00Z",
+      "last_saved_at": "2026-03-10T19:00:00Z",
+      "missed_reminder_sent": false
+    }
+  },
+  {
+    "model": "health_checkin.morningcheckin",
+    "pk": "35b6a9bf-cc6b-4bbf-b8a5-5e8a9b3c8205",
+    "fields": {
+      "session": "5c2a0e70-8f42-4d43-980c-3bd7e7b5d3a9",
+      "fatigue_vas": 6.5,
+      "pelvic_pressure_vas": 4.1,
+      "psq_skin_sensitivity": 5.0,
+      "psq_muscle_pressure_pain": 6.0,
+      "psq_body_tenderness": 4.5,
+      "hyperalgesia_index": 5.167,
+      "hyperalgesia_severity": "Moderate"
+    }
+  },
+  {
+    "model": "health_checkin.eveningcheckin",
+    "pk": "0f9ab1c2-6c89-4dc7-bf0a-e9d874e9a2c8",
+    "fields": {
+      "session": "dd09bf0d-5dee-4a53-a8f0-0dc39c2b4928",
+      "breast_left_vas": 5.0,
+      "breast_right_vas": 6.0,
+      "mastalgia_side": "Bilateral",
+      "mastalgia_quality": "Pressure",
+      "breast_pain_avg": 5.5,
+      "cyclic_mastalgia_score": 5.5,
+      "breast_soreness_vas": 2.75,
+      "mastalgia_severity": "Moderate",
+      "acne_forehead": 2,
+      "acne_right_cheek": 2,
+      "acne_left_cheek": 1,
+      "acne_nose": 1,
+      "acne_chin": 0,
+      "acne_chest_back": 1,
+      "gags_score": 14,
+      "acne_severity_likert": 0.9545,
+      "acne_severity_label": "Mild",
+      "bloating_delta_cm": 2.4,
+      "unusual_bleeding": false
+    }
+  },
+  {
+    "model": "health_checkin.hirsutismmfgcheckin",
+    "pk": "2f3b0f13-1a6a-4c2b-b2a4-7d2b4a3d1d46",
+    "fields": {
+      "user": "a1d34c19-7c9d-4f84-8d57-2b2a6ddc8f6b",
+      "assessed_date": "2026-03-07",
+      "mfg_upper_lip": 2,
+      "mfg_chin": 1,
+      "mfg_chest": 1,
+      "mfg_upper_back": 1,
+      "mfg_lower_back": 0,
+      "mfg_upper_abdomen": 1,
+      "mfg_lower_abdomen": 0,
+      "mfg_upper_arm": 2,
+      "mfg_thigh": 1,
+      "mfg_total_score": 9,
+      "mfg_severity": "Mild",
+      "created_at": "2026-03-07T10:30:00Z"
+    }
+  }
+]
