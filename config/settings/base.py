@@ -242,7 +242,7 @@ PASSWORD_RESET_EXPIRY_HOURS = 2
 # ── CORS ──────────────────────────────────────────────────────────────────────
 CORS_ALLOWED_ORIGINS = config(
     "CORS_ALLOWED_ORIGINS",
-    default="http://localhost:3000,http://localhost:5173",
+    default="http://localhost:3000,http://localhost:5173,http://localhost:8080,http://10.182.50.57:8080,http://127.0.0.1:8080",
     cast=Csv(),
 )
 CORS_ALLOW_CREDENTIALS = True
