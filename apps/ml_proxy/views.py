@@ -539,11 +539,29 @@ class RppgPredictMetabolicCardioView(APIView):
         summary="Predict metabolic and cardiovascular disease risks from rPPG data",
     )
     def post(self, request):
-        data, status_code = nodejs_post(
-            request.user.id,
-            "/api/v1/rppg/predict/metabolic-cardio",
-        )
-        return Response(data, status=status_code)
+        # Get latest rPPG session for this user
+        try:
+            session_data, _ = nodejs_get(
+                request.user.id,
+                "/api/v1/rppg/sessions",
+            )
+            
+            # Use latest session data for prediction
+            latest_session = session_data.get('sessions', [{}])[0] if session_data.get('sessions') else {}
+            
+            data, status_code = nodejs_post(
+                request.user.id,
+                "/api/v1/rppg/predict/metabolic-cardio",
+                body=latest_session,
+            )
+            return Response(data, status=status_code)
+        except Exception:
+            # If no session data, make prediction without session context
+            data, status_code = nodejs_post(
+                request.user.id,
+                "/api/v1/rppg/predict/metabolic-cardio",
+            )
+            return Response(data, status=status_code)
 
 
 class RppgPredictStressReproductiveView(APIView):
@@ -562,11 +580,29 @@ class RppgPredictStressReproductiveView(APIView):
         summary="Predict stress and reproductive disease risks from rPPG data",
     )
     def post(self, request):
-        data, status_code = nodejs_post(
-            request.user.id,
-            "/api/v1/rppg/predict/stress-reproductive",
-        )
-        return Response(data, status=status_code)
+        # Get latest rPPG session for this user
+        try:
+            session_data, _ = nodejs_get(
+                request.user.id,
+                "/api/v1/rppg/sessions",
+            )
+            
+            # Use latest session data for prediction
+            latest_session = session_data.get('sessions', [{}])[0] if session_data.get('sessions') else {}
+            
+            data, status_code = nodejs_post(
+                request.user.id,
+                "/api/v1/rppg/predict/stress-reproductive",
+                body=latest_session,
+            )
+            return Response(data, status=status_code)
+        except Exception:
+            # If no session data, make prediction without session context
+            data, status_code = nodejs_post(
+                request.user.id,
+                "/api/v1/rppg/predict/stress-reproductive",
+            )
+            return Response(data, status=status_code)
 
 
 class RppgPredictAnomalyView(APIView):
@@ -585,11 +621,29 @@ class RppgPredictAnomalyView(APIView):
         summary="Run anomaly detection on rPPG data",
     )
     def post(self, request):
-        data, status_code = nodejs_post(
-            request.user.id,
-            "/api/v1/rppg/predict/anomaly",
-        )
-        return Response(data, status=status_code)
+        # Get latest rPPG session for this user
+        try:
+            session_data, _ = nodejs_get(
+                request.user.id,
+                "/api/v1/rppg/sessions",
+            )
+            
+            # Use latest session data for prediction
+            latest_session = session_data.get('sessions', [{}])[0] if session_data.get('sessions') else {}
+            
+            data, status_code = nodejs_post(
+                request.user.id,
+                "/api/v1/rppg/predict/anomaly",
+                body=latest_session,
+            )
+            return Response(data, status=status_code)
+        except Exception:
+            # If no session data, make prediction without session context
+            data, status_code = nodejs_post(
+                request.user.id,
+                "/api/v1/rppg/predict/anomaly",
+            )
+            return Response(data, status=status_code)
 
 
 class RppgSessionsView(APIView):
