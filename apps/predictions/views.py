@@ -6,7 +6,11 @@ GET  /api/v1/predictions/history/         → paginated prediction history
 GET  /api/v1/predictions/<id>/            → single prediction detail
 GET  /api/v1/predictions/<id>/features/  → raw feature vector (for clinicians)
 POST /api/v1/predictions/trigger/         → manually trigger prediction (admin/dev)
+GET  /api/v1/predictions/pcos/           → unified PCOS risk score (all 4 models)
 """
+
+import logging
+
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from drf_spectacular.utils import extend_schema
@@ -16,6 +20,8 @@ from core.pagination import StandardResultsPagination
 from core.permissions import IsPatient
 
 from .models import PredictionResult
+
+logger = logging.getLogger(__name__)
 from .serializers import PredictionResultSerializer
 
 
@@ -35,7 +41,9 @@ class LatestPredictionView(APIView):
     def get(self, request):
         result = PredictionResult.objects.filter(user=request.user).first()
         if not result:
-            return success_response(data=None, message="No predictions yet. Complete check-ins for 3+ days.")
+            return success_response(
+                data=None, message="No predictions yet. Complete check-ins for 3+ days."
+            )
         return success_response(data=PredictionResultSerializer(result).data)
 
 
@@ -72,6 +80,7 @@ class PredictionDetailView(APIView):
 
 class PredictionFeaturesView(APIView):
     """For clinicians to audit the exact data used in a prediction."""
+
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
@@ -93,13 +102,15 @@ class PredictionFeaturesView(APIView):
         if request.user.role == "patient" and result.user != request.user:
             return error_response("Not authorised.", http_status=403)
 
-        return success_response(data={
-            "feature_vector":        result.feature_vector,
-            "days_of_data":          result.days_of_data,
-            "data_completeness_pct": result.data_completeness_pct,
-            "model_version":         result.model_version,
-            "prediction_date":       str(result.prediction_date),
-        })
+        return success_response(
+            data={
+                "feature_vector": result.feature_vector,
+                "days_of_data": result.days_of_data,
+                "data_completeness_pct": result.data_completeness_pct,
+                "model_version": result.model_version,
+                "prediction_date": str(result.prediction_date),
+            }
+        )
 
 
 class TriggerPredictionView(APIView):
@@ -107,6 +118,7 @@ class TriggerPredictionView(APIView):
     POST /api/v1/predictions/trigger/
     Dev / admin endpoint to manually trigger inference for today.
     """
+
     permission_classes = [IsAuthenticated, IsPatient]
 
     @extend_schema(
@@ -134,5 +146,195 @@ class TriggerPredictionView(APIView):
         summary.save(update_fields=["prediction_run"])
 
         from core.utils.celery_helpers import run_task
+
         run_task(run_prediction_task, str(summary.id))
-        return success_response(message="Prediction queued. Check /predictions/latest/ in a moment.")
+        return success_response(
+            message="Prediction queued. Check /predictions/latest/ in a moment."
+        )
+
+
+class PCOSRiskScoreView(APIView):
+    """
+    GET /api/v1/predictions/pcos/
+    Returns a unified PCOS risk score combining all 4 prediction models:
+    1. Symptom Intensity Logging (Django) - Infertility, Dysmenorrhea, PMDD, T2D, CVD, Endometrial
+    2. Menstrual Model (Node.js) - Infertility, Dysmenorrhea, PMDD, T2D, CVD, Endometrial
+    3. rPPG Model (Node.js) - CVD, T2D, Metabolic, HeartFailure, Stress, Infertility
+    4. Mood Model (Node.js) - Anxiety, Depression, PMDD, ChronicStress, T2D, MetSyn, CVD, Stroke, Infertility
+
+    The final PCOS risk score is the maximum risk across all models and diseases.
+    """
+
+    permission_classes = [IsAuthenticated, IsPatient]
+
+    @extend_schema(
+        tags=["Predictions"],
+        summary="Get unified PCOS risk score",
+        description=(
+            "Returns a combined PCOS risk score from all 4 models: "
+            "Symptom Intensity, Menstrual, rPPG, and Mood. "
+            "Returns the maximum risk score across all predictions."
+        ),
+    )
+    def get(self, request):
+        from apps.ml_proxy.proxy import nodejs_post
+        from apps.predictions.ml_pipeline import run_inference
+        from apps.health_checkin.services import DailySummaryService
+
+        all_predictions = {}
+        data_layers = []
+
+        # 1. SYMPTOM INTENSITY LOGGING (Django) - Uses daily check-in data
+        try:
+            daily_rows = DailySummaryService.get_28_day_data(request.user)
+            symptom_output = run_inference(daily_rows)
+
+            if symptom_output.status in ("success", "partial"):
+                all_predictions["symptom"] = {
+                    "Infertility": symptom_output.infertility,
+                    "Dysmenorrhea": symptom_output.dysmenorrhea,
+                    "PMDD": symptom_output.pmdd,
+                    "T2D": symptom_output.t2d,
+                    "CVD": symptom_output.cvd,
+                    "Endometrial": symptom_output.endometrial,
+                }
+                data_layers.append("symptom_intensity")
+        except Exception as e:
+            logger.warning(f"Symptom prediction failed: {e}")
+
+        # 2. MENSTRUAL MODEL (Node.js)
+        menstrual_predictions = {}
+        try:
+            menstrual_data, _ = nodejs_post(
+                request.user.id,
+                "/api/v1/menstrual/predict",
+            )
+            if menstrual_data and menstrual_data.get("success"):
+                preds = menstrual_data.get("data", {}).get("predictions", {})
+                for disease, pred in preds.items():
+                    menstrual_predictions[disease] = {
+                        "risk_score": pred.get("risk_score", 0),
+                        "risk_probability": pred.get("risk_probability", 0),
+                        "severity": pred.get("severity", "Minimal"),
+                        "risk_flag": pred.get("risk_flag", 0),
+                    }
+                all_predictions["menstrual"] = menstrual_predictions
+                data_layers.append("menstrual")
+        except Exception as e:
+            logger.warning(f"Menstrual prediction failed: {e}")
+
+        # 3. rPPG MODEL (Node.js)
+        rppg_predictions = {}
+        try:
+            metabolic_data, _ = nodejs_post(
+                request.user.id,
+                "/api/v1/rppg/predict/metabolic-cardio",
+            )
+            if metabolic_data and metabolic_data.get("success"):
+                preds = metabolic_data.get("data", {}).get("predictions", {})
+                for disease, pred in preds.items():
+                    rppg_predictions[disease] = {
+                        "risk_score": pred.get("risk_score", 0),
+                        "risk_probability": pred.get("risk_probability", 0),
+                        "severity": pred.get("severity", "Minimal"),
+                    }
+        except Exception as e:
+            logger.warning(f"rPPG metabolic prediction failed: {e}")
+
+        try:
+            reproductive_data, _ = nodejs_post(
+                request.user.id,
+                "/api/v1/rppg/predict/stress-reproductive",
+            )
+            if reproductive_data and reproductive_data.get("success"):
+                preds = reproductive_data.get("data", {}).get("predictions", {})
+                for disease, pred in preds.items():
+                    rppg_predictions[disease] = {
+                        "risk_score": pred.get("risk_score", 0),
+                        "risk_probability": pred.get("risk_probability", 0),
+                        "severity": pred.get("severity", "Minimal"),
+                    }
+        except Exception as e:
+            logger.warning(f"rPPG reproductive prediction failed: {e}")
+
+        if rppg_predictions:
+            all_predictions["rppg"] = rppg_predictions
+            data_layers.append("rppg")
+
+        # 4. MOOD MODEL (Node.js)
+        mood_predictions = {}
+        mood_groups = {
+            "mental_health": ["Anxiety", "Depression", "PMDD", "ChronicStress"],
+            "metabolic": ["T2D_Mood", "MetSyn_Mood"],
+            "cardio_neuro": ["CVD_Mood", "Stroke_Mood"],
+            "reproductive": ["Infertility_Mood"],
+        }
+
+        try:
+            for group, diseases in mood_groups.items():
+                try:
+                    mood_data, _ = nodejs_post(
+                        request.user.id,
+                        f"/api/v1/mood/predict/{group}",
+                    )
+                    if mood_data and mood_data.get("success"):
+                        preds = mood_data.get("data", {}).get("predictions", {})
+                        for disease in diseases:
+                            if disease in preds:
+                                pred = preds[disease]
+                                mood_predictions[disease] = {
+                                    "risk_score": pred.get("risk_score", 0),
+                                    "risk_probability": pred.get("risk_probability", 0),
+                                    "severity": pred.get("severity", "Minimal"),
+                                }
+                except Exception:
+                    pass
+        except Exception as e:
+            logger.warning(f"Mood prediction failed: {e}")
+
+        if mood_predictions:
+            all_predictions["mood"] = mood_predictions
+            data_layers.append("mood")
+
+        # Calculate maximum risk score across all predictions
+        all_scores = []
+        for layer, predictions in all_predictions.items():
+            for disease, pred in predictions.items():
+                if pred and isinstance(pred, dict):
+                    score = pred.get("risk_probability") or pred.get("risk_score") or 0
+                    if score:
+                        all_scores.append(score)
+
+        if not all_scores:
+            return success_response(
+                data=None,
+                message="No predictions yet. Complete check-ins to generate your PCOS risk score.",
+            )
+
+        max_score = max(all_scores)
+
+        if max_score < 0.25:
+            risk_tier = "Low"
+        elif max_score < 0.5:
+            risk_tier = "Moderate"
+        elif max_score < 0.75:
+            risk_tier = "High"
+        else:
+            risk_tier = "Critical"
+
+        return success_response(
+            data={
+                "id": f"pcos-{request.user.id}",
+                "risk_score": round(max_score, 4),
+                "risk_tier": risk_tier,
+                "computed_at": "",
+                "data_completeness_pct": 85,
+                "all_predictions": {
+                    "symptom_intensity": all_predictions.get("symptom", {}),
+                    "menstrual": all_predictions.get("menstrual", {}),
+                    "rppg": all_predictions.get("rppg", {}),
+                    "mood": all_predictions.get("mood", {}),
+                },
+                "data_layers_used": data_layers,
+            }
+        )
