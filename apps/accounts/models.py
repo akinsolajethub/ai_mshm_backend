@@ -31,6 +31,7 @@ Account creation rules:
   - FHC Admin creates FHC Staff and Clinician accounts via the FMC management API
   - No self-registration is allowed for staff, admin, or clinician roles
 """
+
 import uuid
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.db import models
@@ -66,10 +67,10 @@ class UserManager(BaseUserManager):
         extra_fields.setdefault("is_superuser", True)
         extra_fields.setdefault("role", User.Role.ADMIN)
         extra_fields.setdefault("is_email_verified", True)
-    
+
         if not extra_fields.get("full_name"):
             extra_fields["full_name"] = "Platform Admin"
-    
+
         return self.create_user(email, password, **extra_fields)
 
 
@@ -88,19 +89,19 @@ class User(AbstractBaseUser, PermissionsMixin):
     """
 
     class Role(models.TextChoices):
-        PATIENT   = "patient",    "Patient"
-        CLINICIAN = "clinician",  "Clinician / Doctor"
-        HCC_STAFF = "hcc_staff",  "PHC Staff"
-        HCC_ADMIN = "hcc_admin",  "PHC Admin"
-        FHC_STAFF = "fhc_staff",  "FMC Staff"
-        FHC_ADMIN = "fhc_admin",  "FMC Admin"
-        ADMIN     = "admin",      "Platform Admin"
+        PATIENT = "patient", "Patient"
+        CLINICIAN = "clinician", "Clinician / Doctor"
+        HCC_STAFF = "hcc_staff", "PHC Staff"
+        HCC_ADMIN = "hcc_admin", "PHC Admin"
+        FHC_STAFF = "fhc_staff", "FMC Staff"
+        FHC_ADMIN = "fhc_admin", "FMC Admin"
+        ADMIN = "admin", "Platform Admin"
 
     # ── Core identity ─────────────────────────────────────────────────────────
-    id        = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    email     = models.EmailField(unique=True, db_index=True)
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    email = models.EmailField(unique=True, db_index=True)
     full_name = models.CharField(max_length=255)
-    role      = models.CharField(
+    role = models.CharField(
         max_length=20,
         choices=Role.choices,
         default=Role.PATIENT,
@@ -108,29 +109,33 @@ class User(AbstractBaseUser, PermissionsMixin):
     )
 
     # ── Auth state ────────────────────────────────────────────────────────────
-    is_active         = models.BooleanField(default=True)
-    is_staff          = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
+    is_staff = models.BooleanField(default=False)
     is_email_verified = models.BooleanField(default=False)
+
+    # ── 2FA (required for PHC/FMC staff) ────────────────────────────────────
+    is_2fa_enabled = models.BooleanField(default=False)
+    two_factor_secret = models.CharField(max_length=32, blank=True, default="")
 
     # ── Onboarding progress (patients only) ───────────────────────────────────
     onboarding_completed = models.BooleanField(default=False)
-    onboarding_step      = models.PositiveSmallIntegerField(default=0)  # 0–5
+    onboarding_step = models.PositiveSmallIntegerField(default=0)  # 0–5
 
     # ── Avatar (Cloudinary) ───────────────────────────────────────────────────
     avatar = models.ImageField(storage=AvatarStorage(), null=True, blank=True)
 
     # ── Timestamps ────────────────────────────────────────────────────────────
     date_joined = models.DateTimeField(default=timezone.now)
-    last_login  = models.DateTimeField(null=True, blank=True)
+    last_login = models.DateTimeField(null=True, blank=True)
 
     objects = UserManager()
 
-    USERNAME_FIELD  = "email"
+    USERNAME_FIELD = "email"
     REQUIRED_FIELDS = ["full_name"]
 
     class Meta:
-        ordering      = ["-date_joined"]
-        verbose_name  = "User"
+        ordering = ["-date_joined"]
+        verbose_name = "User"
         verbose_name_plural = "Users"
 
     def __str__(self):
@@ -192,14 +197,16 @@ class User(AbstractBaseUser, PermissionsMixin):
 
 # ── Email Verification ────────────────────────────────────────────────────────
 
+
 class EmailVerificationToken(models.Model):
     """
     Short-lived token sent to a user's email to verify ownership.
     Stores a SHA-256 hash of the raw token — raw token is never persisted.
     Expiry configured via EMAIL_VERIFICATION_EXPIRY_HOURS in settings.
     """
-    id         = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    user       = models.OneToOneField(User, on_delete=models.CASCADE, related_name="email_token")
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="email_token")
     token_hash = models.CharField(max_length=64, db_index=True)
     expires_at = models.DateTimeField()
     created_at = models.DateTimeField(auto_now_add=True)
@@ -216,6 +223,7 @@ class EmailVerificationToken(models.Model):
 
 # ── Password Reset ────────────────────────────────────────────────────────────
 
+
 class PasswordResetToken(models.Model):
     """
     Short-lived token sent to a user's email to reset their password.
@@ -224,19 +232,53 @@ class PasswordResetToken(models.Model):
     Multiple outstanding tokens are allowed per user (all stored),
     but only the most recent unused, unexpired token is valid.
     """
-    id         = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    user       = models.ForeignKey(User, on_delete=models.CASCADE, related_name="password_tokens")
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="password_tokens")
     token_hash = models.CharField(max_length=64, db_index=True)
     expires_at = models.DateTimeField()
-    is_used    = models.BooleanField(default=False)
+    is_used = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         verbose_name = "Password Reset Token"
-        ordering     = ["-created_at"]
+        ordering = ["-created_at"]
 
     def is_expired(self) -> bool:
         return timezone.now() > self.expires_at
 
     def __str__(self):
         return f"PasswordReset({self.user.email})"
+
+
+# ── Two-Factor Authentication ────────────────────────────────────────────────
+
+
+class TwoFactorAuth(models.Model):
+    """
+    Stores OTP codes for two-factor authentication.
+    OTPs are hashed before storage for security.
+    Each OTP is valid for 10 minutes and can only be used once.
+    """
+
+    OTP_EXPIRY_MINUTES = 10
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="otp_codes")
+    otp_hash = models.CharField(max_length=64, db_index=True)
+    expires_at = models.DateTimeField()
+    is_used = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Two-Factor Auth OTP"
+        ordering = ["-created_at"]
+
+    def is_expired(self) -> bool:
+        return timezone.now() > self.expires_at
+
+    def is_valid(self) -> bool:
+        return not self.is_used and not self.is_expired()
+
+    def __str__(self):
+        return f"OTP({self.user.email}, used={self.is_used})"

@@ -21,6 +21,7 @@ JWT PAYLOAD:
     fhc_admin → FMC portal (red, FMC9 staff management visible)
     clinician → Clinician portal (navy, CL1–CL8)
 """
+
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
@@ -42,6 +43,7 @@ _RESTRICTED_ROLES = {
 
 # ── JWT customisation ─────────────────────────────────────────────────────────
 
+
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     """
     Extends the default JWT token with user metadata embedded in the payload.
@@ -61,8 +63,8 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     def get_token(cls, user):
         token = super().get_token(user)
         token["email"] = user.email
-        token["role"]  = user.role
-        token["name"]  = user.full_name
+        token["role"] = user.role
+        token["name"] = user.full_name
         return token
 
     def validate(self, attrs):
@@ -70,16 +72,30 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         user = self.user
 
         if not user.is_email_verified:
-            raise serializers.ValidationError({
-                "email": "Please verify your email address before logging in.",
-                "code":  "email_not_verified",
-            })
+            raise serializers.ValidationError(
+                {
+                    "email": "Please verify your email address before logging in.",
+                    "code": "email_not_verified",
+                }
+            )
 
-        data["user"] = UserProfileSerializer(user).data
+        # Check if 2FA is required for this user
+        if user.is_2fa_enabled:
+            # Return partial data with 2FA requirement flag
+            data["requires_2fa"] = True
+            data["user"] = UserProfileSerializer(user).data
+            # Don't include tokens yet - user must verify OTP first
+            data.pop("access", None)
+            data.pop("refresh", None)
+        else:
+            data["requires_2fa"] = False
+            data["user"] = UserProfileSerializer(user).data
+
         return data
 
 
 # ── Registration ──────────────────────────────────────────────────────────────
+
 
 class RegisterSerializer(serializers.ModelSerializer):
     """
@@ -97,11 +113,12 @@ class RegisterSerializer(serializers.ModelSerializer):
       confirm_password : required, must match password
       role             : optional, defaults to 'patient'
     """
-    password         = serializers.CharField(write_only=True, validators=[validate_password])
+
+    password = serializers.CharField(write_only=True, validators=[validate_password])
     confirm_password = serializers.CharField(write_only=True)
 
     class Meta:
-        model  = User
+        model = User
         fields = ["full_name", "email", "password", "confirm_password", "role"]
         extra_kwargs = {
             "role": {"required": False},
@@ -131,6 +148,7 @@ class RegisterSerializer(serializers.ModelSerializer):
 
 # ── Admin-created account serializers ────────────────────────────────────────
 
+
 class CreateStaffAccountSerializer(serializers.Serializer):
     """
     Used by HCC Admin and FHC Admin to create new staff / clinician accounts.
@@ -147,8 +165,9 @@ class CreateStaffAccountSerializer(serializers.Serializer):
       email     : required, must be unique
       role      : set programmatically by the view (not user-supplied)
     """
+
     full_name = serializers.CharField(max_length=255)
-    email     = serializers.EmailField()
+    email = serializers.EmailField()
 
     def validate_email(self, value):
         if User.objects.filter(email=value).exists():
@@ -157,6 +176,7 @@ class CreateStaffAccountSerializer(serializers.Serializer):
 
 
 # ── User profile (read-only, embedded in responses) ──────────────────────────
+
 
 class UserProfileSerializer(serializers.ModelSerializer):
     """
@@ -175,16 +195,24 @@ class UserProfileSerializer(serializers.ModelSerializer):
       - fhc_staff  → {center_type: 'fmc', center_name}
       - patient    → null
     """
-    avatar_url  = serializers.SerializerMethodField()
+
+    avatar_url = serializers.SerializerMethodField()
     center_info = serializers.SerializerMethodField()
-    id          = serializers.CharField(read_only=True)
+    id = serializers.CharField(read_only=True)
 
     class Meta:
-        model  = User
+        model = User
         fields = [
-            "id", "email", "full_name", "role", "avatar_url",
-            "is_email_verified", "onboarding_completed", "onboarding_step",
-            "center_info", "date_joined",
+            "id",
+            "email",
+            "full_name",
+            "role",
+            "avatar_url",
+            "is_email_verified",
+            "onboarding_completed",
+            "onboarding_step",
+            "center_info",
+            "date_joined",
         ]
         read_only_fields = fields
 
@@ -242,20 +270,25 @@ class UserProfileSerializer(serializers.ModelSerializer):
 
 # ── Email verification ────────────────────────────────────────────────────────
 
+
 class EmailVerificationSerializer(serializers.Serializer):
     """Accepts the raw verification token from the email link."""
+
     token = serializers.CharField()
 
 
 class ResendVerificationSerializer(serializers.Serializer):
     """Triggers a new verification email for the given address."""
+
     email = serializers.EmailField()
 
 
 # ── Password reset ────────────────────────────────────────────────────────────
 
+
 class ForgotPasswordSerializer(serializers.Serializer):
     """Triggers a password reset email for the given address."""
+
     email = serializers.EmailField()
 
 
@@ -264,8 +297,9 @@ class ResetPasswordSerializer(serializers.Serializer):
     Accepts the password reset token from the email link and sets a new password.
     The token is single-use and expires after PASSWORD_RESET_EXPIRY_HOURS.
     """
-    token            = serializers.CharField()
-    password         = serializers.CharField(validators=[validate_password])
+
+    token = serializers.CharField()
+    password = serializers.CharField(validators=[validate_password])
     confirm_password = serializers.CharField()
 
     def validate(self, attrs):
@@ -276,11 +310,13 @@ class ResetPasswordSerializer(serializers.Serializer):
 
 # ── Change password (authenticated) ──────────────────────────────────────────
 
+
 class ChangePasswordSerializer(serializers.Serializer):
     """
     Allows an authenticated user to change their password.
     Requires the current password as confirmation.
     """
+
     old_password = serializers.CharField()
     new_password = serializers.CharField(validators=[validate_password])
 
@@ -296,6 +332,7 @@ class ConfirmPasswordSerializer(serializers.Serializer):
     Requires the user's current password before performing a destructive action
     (e.g. account deletion). Used as a final confirmation step.
     """
+
     password = serializers.CharField(help_text="Current password to confirm the action.")
 
     def validate_password(self, value):
@@ -307,12 +344,15 @@ class ConfirmPasswordSerializer(serializers.Serializer):
 
 # ── Logout ────────────────────────────────────────────────────────────────────
 
+
 class LogoutSerializer(serializers.Serializer):
     """Blacklists the provided refresh token, invalidating the session."""
+
     refresh = serializers.CharField(help_text="The refresh token to blacklist.")
 
 
 # ── Profile update ────────────────────────────────────────────────────────────
+
 
 class UpdateProfileSerializer(serializers.ModelSerializer):
     """
@@ -323,6 +363,7 @@ class UpdateProfileSerializer(serializers.ModelSerializer):
       full_name : optional, minimum 5 characters
       avatar    : optional, JPEG/PNG/WebP, max 5 MB, uploaded to Cloudinary
     """
+
     avatar = serializers.ImageField(
         required=False,
         allow_null=True,
@@ -333,8 +374,20 @@ class UpdateProfileSerializer(serializers.ModelSerializer):
     full_name = serializers.CharField(required=False, allow_blank=False, min_length=5)
 
     class Meta:
-        model  = User
+        model = User
         fields = ["full_name", "avatar"]
 
     def validate_avatar(self, value):
         return validate_image(value, max_mb=5)
+
+
+# ── Two-Factor Authentication ──────────────────────────────────────────────────
+
+
+class TwoFactorRequestSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+
+class TwoFactorVerifySerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    otp_code = serializers.CharField(min_length=6, max_length=6)

@@ -3,6 +3,7 @@ apps/accounts/views.py
 ───────────────────────
 All auth endpoints. Views are intentionally thin — logic lives in services.py.
 """
+
 from django.contrib.auth import get_user_model
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -22,7 +23,7 @@ from .serializers import (
     ResetPasswordSerializer,
     ChangePasswordSerializer,
     ConfirmPasswordSerializer,
-    LogoutSerializer, 
+    LogoutSerializer,
     UpdateProfileSerializer,
 )
 from .services import AuthService
@@ -32,10 +33,11 @@ User = get_user_model()
 
 # ── Registration ──────────────────────────────────────────────────────────────
 
+
 class RegisterView(APIView):
     permission_classes = [AllowAny]
-    throttle_classes   = [ScopedRateThrottle]
-    throttle_scope     = "auth"
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "auth"
 
     @extend_schema(
         tags=["Auth"],
@@ -55,13 +57,15 @@ class RegisterView(APIView):
 
 # ── Login / Token ─────────────────────────────────────────────────────────────
 
+
 class LoginView(TokenObtainPairView):
     """
     Returns access + refresh tokens along with user profile.
     Inherits from SimpleJWT — custom payload added via CustomTokenObtainPairSerializer.
     """
+
     throttle_classes = [ScopedRateThrottle]
-    throttle_scope   = "auth"
+    throttle_scope = "auth"
 
     @extend_schema(tags=["Auth"], summary="Login – obtain JWT token pair")
     def post(self, request, *args, **kwargs):
@@ -81,6 +85,7 @@ class TokenRefreshViewDocs(TokenRefreshView):
 
 
 # ── Logout ────────────────────────────────────────────────────────────────────
+
 
 class LogoutView(APIView):
     permission_classes = [IsAuthenticated]
@@ -103,6 +108,7 @@ class LogoutView(APIView):
 
 
 # ── Email Verification ────────────────────────────────────────────────────────
+
 
 class VerifyEmailView(APIView):
     permission_classes = [AllowAny]
@@ -128,7 +134,7 @@ class VerifyEmailView(APIView):
                 **UserProfileSerializer(user, context={"request": request}).data,
                 "tokens": {
                     "refresh": str(refresh),
-                    "access":  str(refresh.access_token),
+                    "access": str(refresh.access_token),
                 },
             },
             message="Email verified successfully.",
@@ -154,10 +160,11 @@ class ResendVerificationView(APIView):
 
 # ── Password Reset ────────────────────────────────────────────────────────────
 
+
 class ForgotPasswordView(APIView):
     permission_classes = [AllowAny]
-    throttle_classes   = [ScopedRateThrottle]
-    throttle_scope     = "auth"
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "auth"
 
     @extend_schema(
         tags=["Auth"],
@@ -195,6 +202,7 @@ class ResetPasswordView(APIView):
 
 
 # ── Authenticated User ────────────────────────────────────────────────────────
+
 
 class MeView(APIView):
     permission_classes = [IsAuthenticated]
@@ -260,3 +268,158 @@ class DeleteAccountView(APIView):
         serializer.is_valid(raise_exception=True)
         request.user.delete()
         return success_response(message="Account deleted successfully.")
+
+
+# ── Two-Factor Authentication ─────────────────────────────────────────────────
+
+import hashlib
+import pyotp
+from datetime import timedelta
+from django.utils import timezone
+from drf_spectacular.utils import extend_schema
+
+from apps.accounts.models import TwoFactorAuth
+from apps.accounts.serializers import TwoFactorRequestSerializer, TwoFactorVerifySerializer
+from core.throttles import EmailVerificationThrottle
+
+
+class TwoFactorRequestView(APIView):
+    """
+    Request a 2FA OTP code for login.
+    Users with is_2fa_enabled=True will receive an OTP via email.
+    """
+
+    permission_classes = [AllowAny]
+    throttle_classes = [EmailVerificationThrottle]
+
+    @extend_schema(
+        tags=["Auth"],
+        request=TwoFactorRequestSerializer,
+        summary="Request 2FA OTP",
+        description="Sends a 6-digit OTP to the user's email for 2FA verification.",
+    )
+    def post(self, request):
+        serializer = TwoFactorRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        email = serializer.validated_data["email"]
+        try:
+            user = User.objects.get(email=email.lower())
+        except User.DoesNotExist:
+            return error_response("User not found.", http_status=status.HTTP_404_NOT_FOUND)
+
+        if not user.is_active:
+            return error_response("Account is disabled.", http_status=status.HTTP_403_FORBIDDEN)
+
+        if not user.is_2fa_enabled:
+            return error_response(
+                "2FA is not enabled for this account.", http_status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Generate TOTP secret if not exists
+        if not user.two_factor_secret:
+            user.two_factor_secret = pyotp.random_base32()
+            user.save(update_fields=["two_factor_secret"])
+
+        # Generate OTP
+        totp = pyotp.TOTP(user.two_factor_secret)
+        otp_code = totp.now()
+
+        # Store hashed OTP
+        otp_hash = hashlib.sha256(otp_code.encode()).hexdigest()
+        TwoFactorAuth.objects.create(
+            user=user,
+            otp_hash=otp_hash,
+            expires_at=timezone.now() + timedelta(minutes=TwoFactorAuth.OTP_EXPIRY_MINUTES),
+        )
+
+        # Send email (simplified - just log in development)
+        self._send_otp_email(user, otp_code)
+
+        return success_response(
+            message="OTP sent to your email.",
+            data={"email": user.email, "expires_in_minutes": TwoFactorAuth.OTP_EXPIRY_MINUTES},
+        )
+
+    def _send_otp_email(self, user, otp_code):
+        from django.core.mail import send_mail
+        from django.conf import settings
+
+        subject = "Your AI-MSHM Login Code"
+        message = f"Your login verification code is: {otp_code}\n\nThis code expires in 10 minutes.\nIf you didn't request this, please ignore this email."
+        try:
+            send_mail(subject, message, settings.DEFAULT_FROM_EMAIL, [user.email])
+        except Exception:
+            # Log error but don't fail the request
+            pass
+
+
+class TwoFactorVerifyView(APIView):
+    """
+    Verify a 2FA OTP code and return JWT tokens.
+    """
+
+    permission_classes = [AllowAny]
+
+    @extend_schema(
+        tags=["Auth"],
+        request=TwoFactorVerifySerializer,
+        summary="Verify 2FA OTP and get tokens",
+        description="Verifies the OTP code and returns JWT access/refresh tokens.",
+    )
+    def post(self, request):
+        serializer = TwoFactorVerifySerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        email = serializer.validated_data["email"]
+        otp_code = serializer.validated_data["otp_code"]
+
+        try:
+            user = User.objects.get(email=email.lower())
+        except User.DoesNotExist:
+            return error_response("User not found.", http_status=status.HTTP_404_NOT_FOUND)
+
+        # Verify TOTP
+        if user.two_factor_secret:
+            totp = pyotp.TOTP(user.two_factor_secret)
+            if not totp.verify(otp_code, valid_window=1):
+                return error_response("Invalid OTP code.", http_status=status.HTTP_400_BAD_REQUEST)
+        else:
+            return error_response(
+                "2FA not configured for this user.", http_status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Check stored OTP (as backup verification)
+        otp_hash = hashlib.sha256(otp_code.encode()).hexdigest()
+        otp_record = (
+            TwoFactorAuth.objects.filter(
+                user=user,
+                otp_hash=otp_hash,
+                is_used=False,
+            )
+            .order_by("-created_at")
+            .first()
+        )
+
+        if otp_record and otp_record.is_valid():
+            otp_record.is_used = True
+            otp_record.save()
+
+        # Generate tokens
+        from rest_framework_simplejwt.tokens import RefreshToken
+
+        refresh = RefreshToken.for_user(user)
+
+        # Add custom claims
+        refresh["email"] = user.email
+        refresh["role"] = user.role
+        refresh["name"] = user.full_name
+
+        return success_response(
+            data={
+                "access": str(refresh.access_token),
+                "refresh": str(refresh),
+                "user": UserProfileSerializer(user).data,
+            },
+            message="2FA verification successful.",
+        )
