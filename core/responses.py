@@ -11,6 +11,7 @@ Centralised response builders so every endpoint returns a consistent envelope:
         "meta": {...}               # optional (pagination, etc.)
     }
 """
+
 from rest_framework.response import Response
 from rest_framework import status
 
@@ -32,15 +33,18 @@ def created_response(
     message: str = "Resource created successfully",
     meta: dict | None = None,
 ) -> Response:
-    return success_response(data=data, message=message, http_status=status.HTTP_201_CREATED, meta=meta)
+    return success_response(
+        data=data, message=message, http_status=status.HTTP_201_CREATED, meta=meta
+    )
 
 
 def error_response(
     message: str = "An error occurred",
     errors=None,
+    data=None,
     http_status: int = status.HTTP_400_BAD_REQUEST,
 ) -> Response:
-    payload: dict = {"status": "error", "message": message, "data": None}
+    payload: dict = {"status": "error", "message": message, "data": data}
     if errors:
         payload["errors"] = errors
     return Response(payload, status=http_status)

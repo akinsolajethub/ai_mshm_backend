@@ -190,13 +190,24 @@ class PCOSRiskScoreView(APIView):
             symptom_output = run_inference(daily_rows)
 
             if symptom_output.status in ("success", "partial"):
+
+                def disease_to_dict(dr):
+                    if dr is None:
+                        return None
+                    return {
+                        "risk_score": dr.score,
+                        "risk_probability": dr.risk_prob,
+                        "severity": dr.severity,
+                        "risk_flag": int(dr.flag) if dr.flag is not None else 0,
+                    }
+
                 all_predictions["symptom"] = {
-                    "Infertility": symptom_output.infertility,
-                    "Dysmenorrhea": symptom_output.dysmenorrhea,
-                    "PMDD": symptom_output.pmdd,
-                    "T2D": symptom_output.t2d,
-                    "CVD": symptom_output.cvd,
-                    "Endometrial": symptom_output.endometrial,
+                    "Infertility": disease_to_dict(symptom_output.infertility),
+                    "Dysmenorrhea": disease_to_dict(symptom_output.dysmenorrhea),
+                    "PMDD": disease_to_dict(symptom_output.pmdd),
+                    "T2D": disease_to_dict(symptom_output.t2d),
+                    "CVD": disease_to_dict(symptom_output.cvd),
+                    "Endometrial": disease_to_dict(symptom_output.endometrial),
                 }
                 data_layers.append("symptom_intensity")
         except Exception as e:
