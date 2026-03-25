@@ -308,11 +308,13 @@ class PCOSRiskScoreView(APIView):
             data_layers.append("mood")
 
         # Calculate maximum risk score across all predictions
+        # Use risk_score as the primary value (continuous 0-1), not risk_probability (which can be binary)
         all_scores = []
         for layer, predictions in all_predictions.items():
             for disease, pred in predictions.items():
                 if pred and isinstance(pred, dict):
-                    score = pred.get("risk_probability") or pred.get("risk_score") or 0
+                    # Use risk_score for PCOS risk calculation (continuous value)
+                    score = pred.get("risk_score") or 0
                     if score:
                         all_scores.append(score)
 
