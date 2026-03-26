@@ -127,10 +127,16 @@ class VerifyEmailView(APIView):
             serializer = EmailVerificationSerializer(data=request.data)
             serializer.is_valid(raise_exception=True)
 
+            token = serializer.validated_data.get("token")
+            logger.info("VerifyEmailView: Token received, length=%d", len(token) if token else 0)
+
             try:
-                user = AuthService.verify_email(serializer.validated_data["token"])
+                user = AuthService.verify_email(token)
             except ValueError as e:
+                logger.warning("VerifyEmailView: ValueError - %s", str(e))
                 return error_response(str(e), http_status=status.HTTP_400_BAD_REQUEST)
+
+            logger.info("VerifyEmailView: Generating tokens for user %s", user.email)
 
             # Generate tokens so the user is immediately logged in
             refresh = RefreshToken.for_user(user)

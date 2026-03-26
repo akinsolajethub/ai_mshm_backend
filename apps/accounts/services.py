@@ -4,6 +4,7 @@ apps/accounts/services.py
 All auth business logic lives here — views just validate input and call services.
 This keeps views thin and logic testable in isolation.
 """
+
 import logging
 
 from django.conf import settings
@@ -43,8 +44,8 @@ class AuthService:
     @staticmethod
     def _create_and_send_verification_token(user: User) -> str:
         raw_token = generate_secure_token()
-        hashed    = hash_token(raw_token)
-        expires   = token_expiry(hours=settings.EMAIL_VERIFICATION_EXPIRY_HOURS)
+        hashed = hash_token(raw_token)
+        expires = token_expiry(hours=settings.EMAIL_VERIFICATION_EXPIRY_HOURS)
 
         EmailVerificationToken.objects.update_or_create(
             user=user,
@@ -63,22 +64,26 @@ class AuthService:
 
     @staticmethod
     def verify_email(raw_token: str) -> User:
+        logger.info("verify_email called with token length: %d", len(raw_token))
         hashed = hash_token(raw_token)
+        logger.info("Token hash: %s", hashed[:20] + "...")
+
         try:
-            token_obj = EmailVerificationToken.objects.select_related("user").get(
-                token_hash=hashed
-            )
+            token_obj = EmailVerificationToken.objects.select_related("user").get(token_hash=hashed)
+            logger.info("Found token for user: %s", token_obj.user.email)
         except EmailVerificationToken.DoesNotExist:
+            logger.warning("Token not found in database")
             raise ValueError("Invalid or expired verification token.")
 
         if token_obj.is_expired():
+            logger.warning("Token expired for user: %s", token_obj.user.email)
             raise ValueError("Verification token has expired. Please request a new one.")
 
         user = token_obj.user
         user.is_email_verified = True
         user.save(update_fields=["is_email_verified"])
         token_obj.delete()
-        logger.info("Email verified: %s", user.email)
+        logger.info("Email verified successfully: %s", user.email)
         return user
 
     @staticmethod
@@ -101,12 +106,10 @@ class AuthService:
             return
 
         raw_token = generate_secure_token()
-        hashed    = hash_token(raw_token)
-        expires   = token_expiry(hours=settings.PASSWORD_RESET_EXPIRY_HOURS)
+        hashed = hash_token(raw_token)
+        expires = token_expiry(hours=settings.PASSWORD_RESET_EXPIRY_HOURS)
 
-        PasswordResetToken.objects.create(
-            user=user, token_hash=hashed, expires_at=expires
-        )
+        PasswordResetToken.objects.create(user=user, token_hash=hashed, expires_at=expires)
 
         reset_url = build_frontend_url(f"reset-password?token={raw_token}")
         run_task(
