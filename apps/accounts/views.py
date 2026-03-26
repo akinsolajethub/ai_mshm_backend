@@ -124,25 +124,26 @@ class VerifyEmailView(APIView):
     )
     def post(self, request):
         try:
+            logger.info("VerifyEmailView: Starting verification")
             serializer = EmailVerificationSerializer(data=request.data)
             serializer.is_valid(raise_exception=True)
+            logger.info("VerifyEmailView: Serializer valid")
 
             token = serializer.validated_data.get("token")
             logger.info("VerifyEmailView: Token received, length=%d", len(token) if token else 0)
 
-            try:
-                user = AuthService.verify_email(token)
-            except ValueError as e:
-                logger.warning("VerifyEmailView: ValueError - %s", str(e))
-                return error_response(str(e), http_status=status.HTTP_400_BAD_REQUEST)
+            user = AuthService.verify_email(token)
+            logger.info("VerifyEmailView: AuthService.verify_email completed, user=%s", user.email)
 
-            logger.info("VerifyEmailView: Generating tokens for user %s", user.email)
-
-            # Generate tokens so the user is immediately logged in
+            logger.info("VerifyEmailView: Generating JWT tokens")
             refresh = RefreshToken.for_user(user)
-            user_data = UserProfileSerializer(user, context={"request": request}).data
+            logger.info("VerifyEmailView: JWT tokens generated")
 
-            return success_response(
+            logger.info("VerifyEmailView: Serializing user profile")
+            user_data = UserProfileSerializer(user, context={"request": request}).data
+            logger.info("VerifyEmailView: User profile serialized")
+
+            result = success_response(
                 data={
                     **user_data,
                     "tokens": {
@@ -152,6 +153,12 @@ class VerifyEmailView(APIView):
                 },
                 message="Email verified successfully.",
             )
+            logger.info("VerifyEmailView: Success response created")
+            return result
+
+        except ValueError as e:
+            logger.warning("VerifyEmailView: ValueError - %s", str(e))
+            return error_response(str(e), http_status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             logger.exception("Error in VerifyEmailView: %s", str(e))
             return error_response(
