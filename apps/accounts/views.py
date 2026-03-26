@@ -4,6 +4,8 @@ apps/accounts/views.py
 All auth endpoints. Views are intentionally thin — logic lives in services.py.
 """
 
+import logging
+
 from django.contrib.auth import get_user_model
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -14,6 +16,8 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from drf_spectacular.utils import extend_schema, OpenApiResponse
 
 from core.responses import success_response, created_response, error_response
+
+logger = logging.getLogger(__name__)
 from .serializers import (
     RegisterSerializer,
     UserProfileSerializer,
@@ -119,26 +123,35 @@ class VerifyEmailView(APIView):
         summary="Verify email address",
     )
     def post(self, request):
-        serializer = EmailVerificationSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
         try:
-            user = AuthService.verify_email(serializer.validated_data["token"])
-        except ValueError as e:
-            return error_response(str(e), http_status=status.HTTP_400_BAD_REQUEST)
+            serializer = EmailVerificationSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
 
-        # ── Generate tokens so the user is immediately logged in ──────────────
-        refresh = RefreshToken.for_user(user)
+            try:
+                user = AuthService.verify_email(serializer.validated_data["token"])
+            except ValueError as e:
+                return error_response(str(e), http_status=status.HTTP_400_BAD_REQUEST)
 
-        return success_response(
-            data={
-                **UserProfileSerializer(user, context={"request": request}).data,
-                "tokens": {
-                    "refresh": str(refresh),
-                    "access": str(refresh.access_token),
+            # Generate tokens so the user is immediately logged in
+            refresh = RefreshToken.for_user(user)
+            user_data = UserProfileSerializer(user, context={"request": request}).data
+
+            return success_response(
+                data={
+                    **user_data,
+                    "tokens": {
+                        "refresh": str(refresh),
+                        "access": str(refresh.access_token),
+                    },
                 },
-            },
-            message="Email verified successfully.",
-        )
+                message="Email verified successfully.",
+            )
+        except Exception as e:
+            logger.exception("Error in VerifyEmailView: %s", str(e))
+            return error_response(
+                message="An unexpected error occurred during email verification.",
+                http_status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
 
 class ResendVerificationView(APIView):
