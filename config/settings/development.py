@@ -2,6 +2,7 @@
 AI-MSHM – Development Settings
 Extends base. Run with: DJANGO_SETTINGS_MODULE=config.settings.development
 """
+
 from .base import *  # noqa
 
 DEBUG = True
@@ -9,14 +10,20 @@ DEBUG = True
 ALLOWED_HOSTS = ["*"]
 
 # ── Dev email: print to console ───────────────────────────────────────────────
-#EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+# EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 
 # ── Disable throttling in dev ─────────────────────────────────────────────────
-#REST_FRAMEWORK["DEFAULT_THROTTLE_CLASSES"] = []  # type: ignore[index]
+# Option A: Completely disable (uncomment next line)
+# REST_FRAMEWORK["DEFAULT_THROTTLE_CLASSES"] = []  # type: ignore[index]
+
+# Option B: Increase rate limits for testing
+REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]["auth"] = "100/minute"
+REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]["email_verify"] = "100/minute"
 
 # ── Django Debug Toolbar (optional, install separately) ───────────────────────
 try:
     import debug_toolbar  # noqa
+
     INSTALLED_APPS += ["debug_toolbar"]  # type: ignore[name-defined]
     MIDDLEWARE.insert(0, "debug_toolbar.middleware.DebugToolbarMiddleware")  # type: ignore[name-defined]
     INTERNAL_IPS = ["127.0.0.1"]
@@ -24,7 +31,7 @@ except ImportError:
     pass
 
 # ── Use local file storage in dev (skip Cloudinary) ──────────────────────────
-#DEFAULT_FILE_STORAGE = "django.core.files.storage.FileSystemStorage"
+# DEFAULT_FILE_STORAGE = "django.core.files.storage.FileSystemStorage"
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 LOGGING = {
