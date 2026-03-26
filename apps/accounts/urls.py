@@ -17,8 +17,6 @@ from .views import (
     MeView,
     ChangePasswordView,
     DeleteAccountView,
-    TwoFactorRequestView,
-    TwoFactorVerifyView,
 )
 
 app_name = "accounts"
@@ -39,7 +37,4 @@ urlpatterns = [
     path("me/", MeView.as_view(), name="me"),
     path("me/change-password/", ChangePasswordView.as_view(), name="change-password"),
     path("me/delete/", DeleteAccountView.as_view(), name="delete-account"),
-    # Two-Factor Authentication
-    path("2fa/request/", TwoFactorRequestView.as_view(), name="2fa-request"),
-    path("2fa/verify/", TwoFactorVerifyView.as_view(), name="2fa-verify"),
 ]

@@ -113,10 +113,6 @@ class User(AbstractBaseUser, PermissionsMixin):
     is_staff = models.BooleanField(default=False)
     is_email_verified = models.BooleanField(default=False)
 
-    # ── 2FA (required for PHC/FMC staff) ────────────────────────────────────
-    is_2fa_enabled = models.BooleanField(default=False)
-    two_factor_secret = models.CharField(max_length=32, blank=True, default="")
-
     # ── Onboarding progress (patients only) ───────────────────────────────────
     onboarding_completed = models.BooleanField(default=False)
     onboarding_step = models.PositiveSmallIntegerField(default=0)  # 0–5
@@ -249,36 +245,3 @@ class PasswordResetToken(models.Model):
 
     def __str__(self):
         return f"PasswordReset({self.user.email})"
-
-
-# ── Two-Factor Authentication ────────────────────────────────────────────────
-
-
-class TwoFactorAuth(models.Model):
-    """
-    Stores OTP codes for two-factor authentication.
-    OTPs are hashed before storage for security.
-    Each OTP is valid for 10 minutes and can only be used once.
-    """
-
-    OTP_EXPIRY_MINUTES = 10
-
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="otp_codes")
-    otp_hash = models.CharField(max_length=64, db_index=True)
-    expires_at = models.DateTimeField()
-    is_used = models.BooleanField(default=False)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        verbose_name = "Two-Factor Auth OTP"
-        ordering = ["-created_at"]
-
-    def is_expired(self) -> bool:
-        return timezone.now() > self.expires_at
-
-    def is_valid(self) -> bool:
-        return not self.is_used and not self.is_expired()
-
-    def __str__(self):
-        return f"OTP({self.user.email}, used={self.is_used})"

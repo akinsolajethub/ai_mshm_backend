@@ -79,18 +79,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
                 }
             )
 
-        # Check if 2FA is required for this user
-        if user.is_2fa_enabled:
-            # Return partial data with 2FA requirement flag
-            data["requires_2fa"] = True
-            data["user"] = UserProfileSerializer(user).data
-            # Don't include tokens yet - user must verify OTP first
-            data.pop("access", None)
-            data.pop("refresh", None)
-        else:
-            data["requires_2fa"] = False
-            data["user"] = UserProfileSerializer(user).data
-
+        data["user"] = UserProfileSerializer(user).data
         return data
 
 
@@ -379,15 +368,3 @@ class UpdateProfileSerializer(serializers.ModelSerializer):
 
     def validate_avatar(self, value):
         return validate_image(value, max_mb=5)
-
-
-# ── Two-Factor Authentication ──────────────────────────────────────────────────
-
-
-class TwoFactorRequestSerializer(serializers.Serializer):
-    email = serializers.EmailField()
-
-
-class TwoFactorVerifySerializer(serializers.Serializer):
-    email = serializers.EmailField()
-    otp_code = serializers.CharField(min_length=6, max_length=6)
