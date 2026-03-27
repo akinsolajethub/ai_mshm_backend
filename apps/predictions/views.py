@@ -1,6 +1,11 @@
 """
 apps/predictions/views.py
-════════════════════════
+══════════════════════════════════════════════
+Weighted Ensemble Prediction System
+- Comprehensive prediction with per-disease scores
+- PCOS-specific scoring with clinical rules
+- Admin-configurable ensemble weights
+
 GET  /api/v1/predictions/latest/          → most recent prediction
 GET  /api/v1/predictions/history/         → paginated prediction history
 GET  /api/v1/predictions/<id>/            → single prediction detail
