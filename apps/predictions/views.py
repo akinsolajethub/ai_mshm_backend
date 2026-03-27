@@ -1,12 +1,16 @@
 """
 apps/predictions/views.py
-══════════════════════════
+═════════════════════════
 GET  /api/v1/predictions/latest/          → most recent prediction
 GET  /api/v1/predictions/history/         → paginated prediction history
 GET  /api/v1/predictions/<id>/            → single prediction detail
 GET  /api/v1/predictions/<id>/features/  → raw feature vector (for clinicians)
 POST /api/v1/predictions/trigger/         → manually trigger prediction (admin/dev)
 GET  /api/v1/predictions/pcos/           → unified PCOS risk score (all 4 models)
+GET  /api/v1/predictions/comprehensive/  → comprehensive prediction (all 4 models)
+POST /api/v1/predictions/escalate/mood/  → trigger mood escalation
+POST /api/v1/predictions/escalate/menstrual/  → trigger menstrual escalation
+POST /api/v1/predictions/escalate/rppg/   → trigger rPPG escalation
 """
 
 import logging
