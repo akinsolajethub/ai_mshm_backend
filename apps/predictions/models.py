@@ -206,3 +206,123 @@ class PredictionResult(models.Model):
                 self.endometrial_severity,
             ]
         )
+
+
+class ComprehensivePredictionResult(models.Model):
+    """
+    Unified PCOS risk assessment combining all 4 data layers.
+
+    This is the single source of truth for:
+    - Patient Dashboard PCOS Risk Score
+    - PCOSRiskScore page detailed breakdown
+    - Escalation triggers to PHC/FMC
+
+    Data Layers:
+    1. Symptom Intensity (Active Layer) - from check-in data
+    2. Menstrual (Active Layer) - from cycle tracking
+    3. rPPG (Passive Layer) - from HRV measurements
+    4. Mood (Active Layer) - from mood tracking
+    """
+
+    class RiskTier(models.TextChoices):
+        LOW = "Low", "Low Risk"
+        MODERATE = "Moderate", "Moderate Risk"
+        HIGH = "High", "High Risk"
+        CRITICAL = "Critical", "Critical Risk"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="comprehensive_predictions"
+    )
+
+    # Final unified score (0.0 - 1.0)
+    final_risk_score = models.FloatField(
+        default=0.0,
+        validators=[MinValueValidator(0.0), MaxValueValidator(1.0)],
+        help_text="Final PCOS risk score from MAX across all models",
+    )
+    risk_tier = models.CharField(
+        max_length=10,
+        choices=RiskTier.choices,
+        default=RiskTier.LOW,
+        help_text="Patient-facing risk tier label",
+    )
+
+    # All model outputs (raw predictions from each layer)
+    symptom_predictions = models.JSONField(
+        default=dict, help_text="Raw predictions from symptom intensity model"
+    )
+    menstrual_predictions = models.JSONField(
+        default=dict, help_text="Raw predictions from menstrual model"
+    )
+    rppg_predictions = models.JSONField(
+        default=dict, help_text="Raw predictions from rPPG/HRV model"
+    )
+    mood_predictions = models.JSONField(default=dict, help_text="Raw predictions from mood model")
+
+    # Data source tracking
+    data_layers_used = models.JSONField(
+        default=list,
+        help_text="List of data layers that contributed: ['symptom', 'menstrual', 'rppg', 'mood']",
+    )
+    data_completeness_pct = models.PositiveSmallIntegerField(
+        default=0, help_text="Percentage of data layers available (0-100)"
+    )
+
+    # Clinical severity flags (based on Rotterdam Criteria)
+    severity_flags = models.JSONField(
+        default=dict,
+        help_text="""
+        Clinical interpretation flags:
+        - ovulatory_dysfunction: bool (cycle >35d OR CLV >7d)
+        - hyperandrogenism: bool (high mFG or acne)
+        - metabolic_stress: bool (low HRV and declining trend)
+        - pcom_suspected: bool (combined indicators)
+        """,
+    )
+
+    # Additional clinical context
+    highest_risk_disease = models.CharField(
+        max_length=50, blank=True, default="", help_text="Disease with highest risk score"
+    )
+    highest_risk_model = models.CharField(
+        max_length=20,
+        blank=True,
+        default="",
+        help_text="Model that produced the highest risk score",
+    )
+
+    # Notification status
+    patient_notified = models.BooleanField(default=False)
+    escalated_to_phc = models.BooleanField(default=False, help_text="PHC was notified")
+    escalated_to_fmc = models.BooleanField(default=False, help_text="FMC was notified")
+
+    # Timestamps
+    computed_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        app_label = "predictions"
+        ordering = ["-computed_at"]
+        verbose_name = "Comprehensive Prediction"
+        verbose_name_plural = "Comprehensive Predictions"
+        indexes = [
+            models.Index(fields=["user", "-computed_at"]),
+            models.Index(fields=["risk_tier"]),
+            models.Index(fields=["final_risk_score"]),
+        ]
+
+    def __str__(self):
+        return f"Comprehensive | {self.user.email} | {self.risk_tier} ({self.final_risk_score:.2f})"
+
+    @classmethod
+    def calculate_risk_tier(cls, score: float) -> str:
+        """Convert numeric score to risk tier."""
+        if score < 0.25:
+            return cls.RiskTier.LOW
+        elif score < 0.50:
+            return cls.RiskTier.MODERATE
+        elif score < 0.75:
+            return cls.RiskTier.HIGH
+        else:
+            return cls.RiskTier.CRITICAL

@@ -351,3 +351,255 @@ class PCOSRiskScoreView(APIView):
                 "data_layers_used": data_layers,
             }
         )
+
+
+class ComprehensivePredictionView(APIView):
+    """
+    GET /api/v1/predictions/comprehensive/
+    Returns the stored comprehensive prediction result.
+
+    POST /api/v1/predictions/comprehensive/
+    Triggers a new comprehensive inference run.
+    """
+
+    permission_classes = [IsAuthenticated, IsPatient]
+
+    @extend_schema(
+        tags=["Predictions"],
+        summary="Get comprehensive PCOS risk assessment",
+        description=(
+            "Returns the stored comprehensive prediction combining all 4 models. "
+            "Includes final risk score, tier, all model predictions, severity flags, "
+            "and data layer information."
+        ),
+    )
+    def get(self, request):
+        from .services import ComprehensiveInferenceService
+        from .serializers import ComprehensivePredictionSerializer
+
+        result = ComprehensiveInferenceService.get_latest_result(request.user)
+
+        if not result:
+            return error_response(
+                "No comprehensive prediction yet. Complete check-ins and rPPG measurement.",
+                http_status=404,
+            )
+
+        serializer = ComprehensivePredictionSerializer(result)
+        return success_response(data=serializer.data)
+
+    @extend_schema(
+        tags=["Predictions"],
+        summary="Trigger comprehensive PCOS risk assessment",
+        description=(
+            "Runs all available ML models and creates/updates the comprehensive prediction. "
+            "Triggers per-model escalation if risk is Moderate or higher."
+        ),
+    )
+    def post(self, request):
+        from .services import ComprehensiveInferenceService
+        from .serializers import ComprehensivePredictionSerializer
+
+        result = ComprehensiveInferenceService.run_full_inference(request.user)
+
+        if not result:
+            return error_response(
+                "Could not generate prediction. Ensure you have data from check-ins, "
+                "rPPG sessions, or mood tracking.",
+                http_status=400,
+            )
+
+        serializer = ComprehensivePredictionSerializer(result)
+        return success_response(
+            data=serializer.data,
+            message=f"Comprehensive prediction complete. Risk tier: {result.risk_tier}",
+        )
+
+
+class MoodEscalationView(APIView):
+    """
+    POST /api/v1/predictions/escalate/mood/
+    Trigger escalation based on mood prediction results.
+    """
+
+    permission_classes = [IsAuthenticated, IsPatient]
+
+    @extend_schema(
+        tags=["Predictions"],
+        summary="Escalate based on mood predictions",
+        description="Called when mood tracking results show Moderate or higher severity.",
+    )
+    def post(self, request):
+        from apps.centers.signals import notify_center_of_critical_risk
+        from apps.centers.models import RiskSeverity
+
+        predictions = request.data.get("predictions", {})
+
+        severity_map = {
+            "Moderate": RiskSeverity.MODERATE,
+            "Severe": RiskSeverity.SEVERE,
+            "Extreme": RiskSeverity.VERY_SEVERE,
+        }
+
+        escalated = False
+        for disease, pred in predictions.items():
+            severity = pred.get("severity", "Minimal")
+            if severity in severity_map:
+                score = int((pred.get("risk_score", 0) or 0) * 100)
+                notify_center_of_critical_risk(
+                    patient=request.user,
+                    condition="cardiovascular",
+                    severity=severity_map[severity],
+                    score=score,
+                )
+                escalated = True
+                logger.info(
+                    "Mood escalation: user=%s disease=%s severity=%s score=%d",
+                    request.user.email,
+                    disease,
+                    severity,
+                    score,
+                )
+
+        if escalated:
+            return success_response(
+                message="Mood escalation processed. Healthcare provider notified."
+            )
+        return success_response(message="No escalation needed.")
+
+
+class MenstrualEscalationView(APIView):
+    """
+    POST /api/v1/predictions/escalate/menstrual/
+    Trigger escalation based on menstrual prediction results.
+    """
+
+    permission_classes = [IsAuthenticated, IsPatient]
+
+    @extend_schema(
+        tags=["Predictions"],
+        summary="Escalate based on menstrual predictions",
+        description="Called when menstrual tracking shows abnormal patterns or Moderate+ severity.",
+    )
+    def post(self, request):
+        from apps.centers.signals import notify_center_of_critical_risk
+        from apps.centers.models import RiskSeverity
+
+        predictions = request.data.get("predictions", {})
+        criterion_flags = request.data.get("criterion_flags", {})
+
+        severity_map = {
+            "Moderate": RiskSeverity.MODERATE,
+            "Severe": RiskSeverity.SEVERE,
+            "Extreme": RiskSeverity.VERY_SEVERE,
+        }
+
+        condition_map = {
+            "Infertility": "pcos",
+            "Dysmenorrhea": "maternal",
+            "PMDD": "maternal",
+            "Endometrial": "maternal",
+            "T2D": "cardiovascular",
+            "CVD": "cardiovascular",
+        }
+
+        escalated = False
+
+        # Escalate based on prediction severity
+        for disease, pred in predictions.items():
+            severity = pred.get("severity", "Minimal")
+            if severity in severity_map:
+                score = int((pred.get("risk_score", 0) or 0) * 100)
+                condition = condition_map.get(disease, "pcos")
+                notify_center_of_critical_risk(
+                    patient=request.user,
+                    condition=condition,
+                    severity=severity_map[severity],
+                    score=score,
+                )
+                escalated = True
+                logger.info(
+                    "Menstrual escalation: user=%s disease=%s severity=%s score=%d",
+                    request.user.email,
+                    disease,
+                    severity,
+                    score,
+                )
+
+        # Also check Criterion 1 flags
+        if criterion_flags.get("criterion_1_positive"):
+            notify_center_of_critical_risk(
+                patient=request.user,
+                condition="pcos",
+                severity=RiskSeverity.MODERATE,
+                score=50,
+            )
+            escalated = True
+            logger.info("Menstrual escalation: Criterion 1 positive for %s", request.user.email)
+
+        if escalated:
+            return success_response(
+                message="Menstrual escalation processed. Healthcare provider notified."
+            )
+        return success_response(message="No escalation needed.")
+
+
+class RPPGEscalationView(APIView):
+    """
+    POST /api/v1/predictions/escalate/rppg/
+    Trigger escalation based on rPPG/HRV prediction results.
+    """
+
+    permission_classes = [IsAuthenticated, IsPatient]
+
+    @extend_schema(
+        tags=["Predictions"],
+        summary="Escalate based on rPPG/HRV predictions",
+        description="Called after rPPG session capture when predictions show Moderate+ severity.",
+    )
+    def post(self, request):
+        from apps.centers.signals import notify_center_of_critical_risk
+        from apps.centers.models import RiskSeverity
+
+        predictions = request.data.get("predictions", {})
+
+        severity_map = {
+            "Moderate": RiskSeverity.MODERATE,
+            "Severe": RiskSeverity.SEVERE,
+            "Extreme": RiskSeverity.VERY_SEVERE,
+        }
+
+        condition_map = {
+            "Stress": "cardiovascular",
+            "Metabolic": "cardiovascular",
+            "HeartFailure": "cardiovascular",
+            "CVD": "cardiovascular",
+            "T2D": "cardiovascular",
+        }
+
+        escalated = False
+        for disease, pred in predictions.items():
+            severity = pred.get("severity", "Minimal")
+            if severity in severity_map:
+                score = int((pred.get("risk_score", 0) or 0) * 100)
+                condition = condition_map.get(disease, "cardiovascular")
+                notify_center_of_critical_risk(
+                    patient=request.user,
+                    condition=condition,
+                    severity=severity_map[severity],
+                    score=score,
+                )
+                escalated = True
+                logger.info(
+                    "rPPG escalation: user=%s disease=%s severity=%s score=%d",
+                    request.user.email,
+                    disease,
+                    severity,
+                    score,
+                )
+
+        if escalated:
+            return success_response(
+                message="rPPG escalation processed. Healthcare provider notified."
+            )
+        return success_response(message="No escalation needed.")
