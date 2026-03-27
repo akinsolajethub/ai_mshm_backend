@@ -3,14 +3,19 @@ apps/centers/serializers.py
 ────────────────────────────
 Serializers for PHC, FMC, staff profiles, clinicians, and change requests.
 """
+
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
 from drf_spectacular.utils import extend_schema_field
 
 from .models import (
-    HealthCareCenter, FederalHealthCenter,
-    HCCStaffProfile, FHCStaffProfile, ClinicianProfile,
-    PHCPatientRecord, ChangeRequest,
+    HealthCareCenter,
+    FederalHealthCenter,
+    HCCStaffProfile,
+    FHCStaffProfile,
+    ClinicianProfile,
+    PHCPatientRecord,
+    ChangeRequest,
 )
 
 User = get_user_model()
@@ -18,21 +23,25 @@ User = get_user_model()
 
 # ── Public dropdowns ──────────────────────────────────────────────────────────
 
+
 class HealthCareCenterPublicSerializer(serializers.ModelSerializer):
     """Minimal PHC info for onboarding step 7 and registration dropdowns."""
+
     class Meta:
-        model  = HealthCareCenter
+        model = HealthCareCenter
         fields = ["id", "name", "code", "state", "lga"]
 
 
 class FederalHealthCenterPublicSerializer(serializers.ModelSerializer):
     """Minimal FMC info for dropdowns."""
+
     class Meta:
-        model  = FederalHealthCenter
+        model = FederalHealthCenter
         fields = ["id", "name", "code", "state", "zone"]
 
 
 # ── PHC full detail ───────────────────────────────────────────────────────────
+
 
 class HealthCareCenterSerializer(serializers.ModelSerializer):
     """
@@ -40,19 +49,33 @@ class HealthCareCenterSerializer(serializers.ModelSerializer):
     escalates_to_name: read-only name of the linked FMC.
     Platform Admin can set escalates_to. HCC Admin cannot.
     """
-    staff_count       = serializers.SerializerMethodField()
+
+    staff_count = serializers.SerializerMethodField()
     escalates_to_name = serializers.CharField(
-        source="escalates_to.name", read_only=True, default=None,
+        source="escalates_to.name",
+        read_only=True,
+        default=None,
     )
 
     class Meta:
-        model  = HealthCareCenter
+        model = HealthCareCenter
         fields = [
-            "id", "name", "code", "address", "state", "lga",
-            "phone", "email", "website", "status",
-            "escalates_to", "escalates_to_name",
-            "notify_on_severe", "notify_on_very_severe",
-            "staff_count", "created_at",
+            "id",
+            "name",
+            "code",
+            "address",
+            "state",
+            "lga",
+            "phone",
+            "email",
+            "website",
+            "status",
+            "escalates_to",
+            "escalates_to_name",
+            "notify_on_severe",
+            "notify_on_very_severe",
+            "staff_count",
+            "created_at",
         ]
         read_only_fields = ["id", "created_at", "staff_count", "escalates_to_name"]
 
@@ -63,22 +86,36 @@ class HealthCareCenterSerializer(serializers.ModelSerializer):
 
 # ── FMC full detail ───────────────────────────────────────────────────────────
 
+
 class FederalHealthCenterSerializer(serializers.ModelSerializer):
     """Full FMC record for FHC Admin and Platform Admin."""
-    staff_count     = serializers.SerializerMethodField()
+
+    staff_count = serializers.SerializerMethodField()
     clinician_count = serializers.SerializerMethodField()
 
     class Meta:
-        model  = FederalHealthCenter
+        model = FederalHealthCenter
         fields = [
-            "id", "name", "code", "address", "state", "zone",
-            "phone", "email", "status",
+            "id",
+            "name",
+            "code",
+            "address",
+            "state",
+            "zone",
+            "phone",
+            "email",
+            "status",
             "notify_on_very_severe",
-            "staff_count", "clinician_count", "created_at",
+            "staff_count",
+            "clinician_count",
+            "created_at",
         ]
         read_only_fields = [
-            "id", "created_at", "notify_on_very_severe",
-            "staff_count", "clinician_count",
+            "id",
+            "created_at",
+            "notify_on_very_severe",
+            "staff_count",
+            "clinician_count",
         ]
 
     @extend_schema_field(serializers.IntegerField())
@@ -92,31 +129,49 @@ class FederalHealthCenterSerializer(serializers.ModelSerializer):
 
 # ── PHC Staff ─────────────────────────────────────────────────────────────────
 
+
 class HCCStaffProfileSerializer(serializers.ModelSerializer):
-    user_email     = serializers.EmailField(source="user.email", read_only=True)
+    user_email = serializers.EmailField(source="user.email", read_only=True)
     user_full_name = serializers.CharField(source="user.full_name", read_only=True)
-    hcc_name       = serializers.CharField(source="hcc.name", read_only=True)
-    hcc_code       = serializers.CharField(source="hcc.code", read_only=True)
+    hcc_name = serializers.CharField(source="hcc.name", read_only=True)
+    hcc_code = serializers.CharField(source="hcc.code", read_only=True)
+    user_last_login = serializers.DateTimeField(
+        source="user.last_login", read_only=True, allow_null=True
+    )
 
     class Meta:
-        model  = HCCStaffProfile
+        model = HCCStaffProfile
         fields = [
-            "id", "user_email", "user_full_name",
-            "hcc_name", "hcc_code",
-            "staff_role", "employee_id", "is_active",
-            "created_at", "updated_at",
+            "id",
+            "user_email",
+            "user_full_name",
+            "hcc_name",
+            "hcc_code",
+            "staff_role",
+            "employee_id",
+            "is_active",
+            "created_at",
+            "updated_at",
+            "user_last_login",
         ]
         read_only_fields = [
-            "id", "user_email", "user_full_name",
-            "hcc_name", "hcc_code", "created_at", "updated_at",
+            "id",
+            "user_email",
+            "user_full_name",
+            "hcc_name",
+            "hcc_code",
+            "created_at",
+            "updated_at",
+            "user_last_login",
         ]
 
 
 class CreateHCCStaffSerializer(serializers.Serializer):
     """Used by HCC Admin to create PHC staff accounts."""
-    full_name   = serializers.CharField(max_length=255)
-    email       = serializers.EmailField()
-    staff_role  = serializers.ChoiceField(choices=HCCStaffProfile.StaffRole.choices)
+
+    full_name = serializers.CharField(max_length=255)
+    email = serializers.EmailField()
+    staff_role = serializers.ChoiceField(choices=HCCStaffProfile.StaffRole.choices)
     employee_id = serializers.CharField(max_length=50, required=False, allow_blank=True)
 
     def validate_email(self, value):
@@ -125,33 +180,64 @@ class CreateHCCStaffSerializer(serializers.Serializer):
         return value
 
 
+class HCCStaffCreatedSerializer(serializers.Serializer):
+    """
+    Response serializer for staff creation.
+    Includes temp_password so admin can share credentials with the new staff.
+    """
+
+    id = serializers.UUIDField()
+    user_email = serializers.EmailField()
+    user_full_name = serializers.CharField()
+    hcc_name = serializers.CharField()
+    hcc_code = serializers.CharField()
+    staff_role = serializers.CharField()
+    employee_id = serializers.CharField(allow_blank=True, allow_null=True)
+    is_active = serializers.BooleanField()
+    created_at = serializers.DateTimeField()
+    temp_password = serializers.CharField(help_text="Share this with the new staff member")
+
+
 # ── FMC Staff ─────────────────────────────────────────────────────────────────
 
+
 class FHCStaffProfileSerializer(serializers.ModelSerializer):
-    user_email     = serializers.EmailField(source="user.email", read_only=True)
+    user_email = serializers.EmailField(source="user.email", read_only=True)
     user_full_name = serializers.CharField(source="user.full_name", read_only=True)
-    fhc_name       = serializers.CharField(source="fhc.name", read_only=True)
-    fhc_code       = serializers.CharField(source="fhc.code", read_only=True)
+    fhc_name = serializers.CharField(source="fhc.name", read_only=True)
+    fhc_code = serializers.CharField(source="fhc.code", read_only=True)
 
     class Meta:
-        model  = FHCStaffProfile
+        model = FHCStaffProfile
         fields = [
-            "id", "user_email", "user_full_name",
-            "fhc_name", "fhc_code",
-            "staff_role", "employee_id", "is_active",
-            "created_at", "updated_at",
+            "id",
+            "user_email",
+            "user_full_name",
+            "fhc_name",
+            "fhc_code",
+            "staff_role",
+            "employee_id",
+            "is_active",
+            "created_at",
+            "updated_at",
         ]
         read_only_fields = [
-            "id", "user_email", "user_full_name",
-            "fhc_name", "fhc_code", "created_at", "updated_at",
+            "id",
+            "user_email",
+            "user_full_name",
+            "fhc_name",
+            "fhc_code",
+            "created_at",
+            "updated_at",
         ]
 
 
 class CreateFHCStaffSerializer(serializers.Serializer):
     """Used by FHC Admin to create FMC staff accounts."""
-    full_name   = serializers.CharField(max_length=255)
-    email       = serializers.EmailField()
-    staff_role  = serializers.ChoiceField(choices=FHCStaffProfile.StaffRole.choices)
+
+    full_name = serializers.CharField(max_length=255)
+    email = serializers.EmailField()
+    staff_role = serializers.ChoiceField(choices=FHCStaffProfile.StaffRole.choices)
     employee_id = serializers.CharField(max_length=50, required=False, allow_blank=True)
 
     def validate_email(self, value):
@@ -162,26 +248,43 @@ class CreateFHCStaffSerializer(serializers.Serializer):
 
 # ── Clinician ─────────────────────────────────────────────────────────────────
 
+
 class ClinicianProfileSerializer(serializers.ModelSerializer):
-    fhc_name          = serializers.CharField(source="fhc.name", read_only=True)
-    fhc_code          = serializers.CharField(source="fhc.code", read_only=True)
-    user_email        = serializers.EmailField(source="user.email", read_only=True)
-    user_full_name    = serializers.CharField(source="user.full_name", read_only=True)
+    fhc_name = serializers.CharField(source="fhc.name", read_only=True)
+    fhc_code = serializers.CharField(source="fhc.code", read_only=True)
+    user_email = serializers.EmailField(source="user.email", read_only=True)
+    user_full_name = serializers.CharField(source="user.full_name", read_only=True)
     profile_photo_url = serializers.SerializerMethodField()
 
     class Meta:
-        model  = ClinicianProfile
+        model = ClinicianProfile
         fields = [
-            "id", "user_email", "user_full_name",
-            "fhc", "fhc_name", "fhc_code",
-            "specialization", "license_number", "years_of_experience", "bio",
-            "is_verified", "verified_at",
-            "profile_photo_url", "created_at", "updated_at",
+            "id",
+            "user_email",
+            "user_full_name",
+            "fhc",
+            "fhc_name",
+            "fhc_code",
+            "specialization",
+            "license_number",
+            "years_of_experience",
+            "bio",
+            "is_verified",
+            "verified_at",
+            "profile_photo_url",
+            "created_at",
+            "updated_at",
         ]
         read_only_fields = [
-            "id", "is_verified", "verified_at",
-            "user_email", "user_full_name",
-            "fhc_name", "fhc_code", "created_at", "updated_at",
+            "id",
+            "is_verified",
+            "verified_at",
+            "user_email",
+            "user_full_name",
+            "fhc_name",
+            "fhc_code",
+            "created_at",
+            "updated_at",
         ]
 
     @extend_schema_field(serializers.URLField(allow_null=True))
@@ -194,22 +297,24 @@ class ClinicianProfileSerializer(serializers.ModelSerializer):
 
 class UpdateClinicianProfileSerializer(serializers.ModelSerializer):
     """Clinician updates own profile. Cannot change FMC affiliation."""
+
     class Meta:
-        model  = ClinicianProfile
+        model = ClinicianProfile
         fields = ["specialization", "license_number", "years_of_experience", "bio", "profile_photo"]
 
 
 class CreateClinicianSerializer(serializers.Serializer):
     """Used by FHC Admin to create clinician accounts."""
-    full_name           = serializers.CharField(max_length=255)
-    email               = serializers.EmailField()
-    specialization      = serializers.ChoiceField(
+
+    full_name = serializers.CharField(max_length=255)
+    email = serializers.EmailField()
+    specialization = serializers.ChoiceField(
         choices=ClinicianProfile.Specialization.choices,
         default=ClinicianProfile.Specialization.GENERAL_PRACTICE,
     )
-    license_number      = serializers.CharField(max_length=50, required=False, allow_blank=True)
+    license_number = serializers.CharField(max_length=50, required=False, allow_blank=True)
     years_of_experience = serializers.IntegerField(min_value=0, required=False, default=0)
-    bio                 = serializers.CharField(required=False, allow_blank=True)
+    bio = serializers.CharField(required=False, allow_blank=True)
 
     def validate_email(self, value):
         if User.objects.filter(email=value).exists():
@@ -218,6 +323,7 @@ class CreateClinicianSerializer(serializers.Serializer):
 
 
 # ── PHC Walk-In Registration ──────────────────────────────────────────────────
+
 
 class PHCWalkInSerializer(serializers.Serializer):
     """
@@ -234,15 +340,16 @@ class PHCWalkInSerializer(serializers.Serializer):
       severity   : mild | moderate (required)
       notes      : initial PHC staff observations (optional)
     """
+
     full_name = serializers.CharField(max_length=255)
-    email     = serializers.EmailField()
-    age       = serializers.IntegerField(min_value=10, max_value=120, required=False, allow_null=True)
+    email = serializers.EmailField()
+    age = serializers.IntegerField(min_value=10, max_value=120, required=False, allow_null=True)
     condition = serializers.ChoiceField(choices=PHCPatientRecord.Condition.choices)
-    severity  = serializers.ChoiceField(
+    severity = serializers.ChoiceField(
         choices=[("mild", "Mild"), ("moderate", "Moderate")],
         default="moderate",
     )
-    notes     = serializers.CharField(required=False, allow_blank=True, default="")
+    notes = serializers.CharField(required=False, allow_blank=True, default="")
 
     def validate_email(self, value):
         if User.objects.filter(email=value).exists():
@@ -255,24 +362,35 @@ class PHCWalkInSerializer(serializers.Serializer):
 
 # ── Change Request ────────────────────────────────────────────────────────────
 
+
 class ChangeRequestSerializer(serializers.ModelSerializer):
     """
     Patient submits and views change requests.
     Status, admin_notes, and resolved_at are read-only.
     """
+
     requested_hcc_detail = serializers.SerializerMethodField()
 
     class Meta:
-        model  = ChangeRequest
+        model = ChangeRequest
         fields = [
-            "id", "request_type", "status",
-            "requested_hcc", "requested_hcc_detail",
-            "description", "admin_notes",
-            "created_at", "resolved_at",
+            "id",
+            "request_type",
+            "status",
+            "requested_hcc",
+            "requested_hcc_detail",
+            "description",
+            "admin_notes",
+            "created_at",
+            "resolved_at",
         ]
         read_only_fields = [
-            "id", "status", "admin_notes",
-            "created_at", "resolved_at", "requested_hcc_detail",
+            "id",
+            "status",
+            "admin_notes",
+            "created_at",
+            "resolved_at",
+            "requested_hcc_detail",
         ]
 
     def get_requested_hcc_detail(self, obj):
@@ -282,13 +400,14 @@ class ChangeRequestSerializer(serializers.ModelSerializer):
         return {"id": str(hcc.id), "name": hcc.name, "code": hcc.code, "state": hcc.state}
 
     def validate(self, attrs):
-        if (
-            attrs.get("request_type") == ChangeRequest.RequestType.CHANGE_PHC
-            and not attrs.get("requested_hcc")
+        if attrs.get("request_type") == ChangeRequest.RequestType.CHANGE_PHC and not attrs.get(
+            "requested_hcc"
         ):
-            raise serializers.ValidationError({
-                "requested_hcc": "Select the PHC you want to switch to.",
-            })
+            raise serializers.ValidationError(
+                {
+                    "requested_hcc": "Select the PHC you want to switch to.",
+                }
+            )
         return attrs
 
     def create(self, validated_data):

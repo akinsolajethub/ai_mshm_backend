@@ -555,14 +555,17 @@ class PHCStaffListView(APIView):
         tags=["PHC Admin"],
         request=CreateHCCStaffSerializer,
         summary="Create a PHC staff account",
+        description="Creates a new PHC staff account. Returns temp_password that should be shared with the new staff member.",
     )
     def post(self, request):
         center = getattr(request.user, "managed_hcc", None)
         if not center:
             return error_response("No PHC facility linked to your account.", http_status=404)
+
         serializer = CreateHCCStaffSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
+
         temp_password = _generate_temp_password()
         user = User.objects.create_user(
             email=data["email"],
@@ -571,15 +574,22 @@ class PHCStaffListView(APIView):
             role=User.Role.HCC_STAFF,
             is_email_verified=True,
         )
+
         profile = HCCStaffProfile.objects.create(
             user=user,
             hcc=center,
             staff_role=data["staff_role"],
             employee_id=data.get("employee_id", ""),
         )
+
+        logger.info("PHC Staff created: email=%s by admin=%s", user.email, request.user.email)
+
         return created_response(
-            data=HCCStaffProfileSerializer(profile).data,
-            message=f"PHC staff account created for {user.email}.",
+            data={
+                **HCCStaffProfileSerializer(profile).data,
+                "temp_password": temp_password,
+            },
+            message=f"PHC staff account created. Share temporary password with {user.email}.",
         )
 
 
