@@ -3,7 +3,12 @@ apps/predictions/serializers.py
 """
 
 from rest_framework import serializers
-from .models import PredictionResult, PredictionSeverity, ComprehensivePredictionResult
+from .models import (
+    PredictionResult,
+    PredictionSeverity,
+    ComprehensivePredictionResult,
+    EnsembleWeightConfig,
+)
 
 
 class DiseaseResultSerializer(serializers.Serializer):
@@ -120,11 +125,14 @@ class ComprehensivePredictionSerializer(serializers.ModelSerializer):
     """
     Serializer for ComprehensivePredictionResult.
     Includes all model predictions, severity flags, and data layer info.
+    Now includes weighted ensemble scores, per-disease scores, and calculation breakdown.
     """
 
     all_predictions = serializers.SerializerMethodField()
     data_sources = serializers.SerializerMethodField()
     clinical_flags = serializers.SerializerMethodField()
+    clinical_rules_applied = serializers.SerializerMethodField()
+    calculation_explanation = serializers.SerializerMethodField()
 
     class Meta:
         model = ComprehensivePredictionResult
@@ -132,12 +140,19 @@ class ComprehensivePredictionSerializer(serializers.ModelSerializer):
             "id",
             "final_risk_score",
             "risk_tier",
+            "pcos_specific_score",
+            "per_disease_scores",
             "all_predictions",
             "data_layers_used",
             "data_completeness_pct",
             "data_sources",
             "severity_flags",
             "clinical_flags",
+            "clinical_rules_triggered",
+            "clinical_rules_applied",
+            "weights_used",
+            "calculation_breakdown",
+            "calculation_explanation",
             "highest_risk_disease",
             "highest_risk_model",
             "patient_notified",
@@ -146,6 +161,48 @@ class ComprehensivePredictionSerializer(serializers.ModelSerializer):
             "computed_at",
         ]
         read_only_fields = fields
+
+    def get_clinical_rules_applied(self, obj):
+        """Return formatted clinical rules that were triggered."""
+        rules = obj.clinical_rules_triggered or []
+        rule_labels = {
+            "rotterdam_2_criteria_met": "Rotterdam 2 Criteria Met",
+            "rotterdam_3_criteria_met": "Rotterdam 3 Criteria Met",
+            "metabolic_reproductive_cluster": "Metabolic-Reproductive Cluster",
+            "mood_rppg_stress_stack": "Mood-Stress Stack",
+            "severe_amplification": "Severe Amplification",
+        }
+        return [
+            {
+                "rule": rule,
+                "label": rule_labels.get(rule, rule.replace("_", " ").title()),
+            }
+            for rule in rules
+        ]
+
+    def get_calculation_explanation(self, obj):
+        """Return human-readable explanation of how the score was calculated."""
+        breakdown = obj.calculation_breakdown or {}
+        explanation = []
+
+        # Explain weighted ensemble
+        explanation.append(
+            "Your risk score is calculated using a weighted ensemble of 4 data sources: "
+            "Symptom Check-ins (30%), Menstrual Tracking (25%), rPPG/HRV (25%), and Mood Tracking (20%)."
+        )
+
+        # Explain clinical rules
+        rules = obj.clinical_rules_triggered or []
+        if rules:
+            explanation.append(
+                f"Clinical rule adjustments were applied: {', '.join(r.title().replace('_', ' ') for r in rules)}."
+            )
+
+        # Explain data sources
+        layers = obj.data_layers_used or []
+        explanation.append(f"Analysis based on {len(layers)} data source(s): {', '.join(layers)}.")
+
+        return " ".join(explanation)
 
     def get_all_predictions(self, obj):
         """Combine all model predictions into one structure."""
@@ -232,3 +289,49 @@ class ComprehensivePredictionSerializer(serializers.ModelSerializer):
             )
 
         return interpretations
+
+
+class EnsembleWeightConfigSerializer(serializers.ModelSerializer):
+    """
+    Serializer for EnsembleWeightConfig.
+    Allows admin to view and update ensemble weights per disease.
+    """
+
+    class Meta:
+        model = EnsembleWeightConfig
+        fields = [
+            "id",
+            "disease_name",
+            "symptom_weight",
+            "menstrual_weight",
+            "rppg_weight",
+            "mood_weight",
+            "rotterdam_2_criteria_boost",
+            "rotterdam_3_criteria_boost",
+            "metabolic_reproductive_boost",
+            "mood_rppg_stress_boost",
+            "is_active",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "updated_at"]
+
+    def validate(self, attrs):
+        """Validate that weights sum to 1.0."""
+        weights = [
+            attrs.get("symptom_weight", 0.30),
+            attrs.get("menstrual_weight", 0.25),
+            attrs.get("rppg_weight", 0.25),
+            attrs.get("mood_weight", 0.20),
+        ]
+        total = sum(weights)
+        if abs(total - 1.0) > 0.001:
+            raise serializers.ValidationError(
+                {"non_field_errors": [f"Model weights must sum to 1.0 (current sum: {total:.3f})"]}
+            )
+        return attrs
+
+
+class EnsembleWeightConfigListSerializer(serializers.Serializer):
+    """Serializer for listing all weight configurations."""
+
+    diseases = EnsembleWeightConfigSerializer(many=True)

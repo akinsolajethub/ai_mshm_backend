@@ -1,6 +1,6 @@
 """
 apps/predictions/views.py
-═════════════════════════
+════════════════════════
 GET  /api/v1/predictions/latest/          → most recent prediction
 GET  /api/v1/predictions/history/         → paginated prediction history
 GET  /api/v1/predictions/<id>/            → single prediction detail
@@ -11,22 +11,26 @@ GET  /api/v1/predictions/comprehensive/  → comprehensive prediction (all 4 mod
 POST /api/v1/predictions/escalate/mood/  → trigger mood escalation
 POST /api/v1/predictions/escalate/menstrual/  → trigger menstrual escalation
 POST /api/v1/predictions/escalate/rppg/   → trigger rPPG escalation
+GET  /api/v1/predictions/ensemble-config/  → get all ensemble weight configs
+PUT  /api/v1/predictions/ensemble-config/<disease>/  → update specific disease weights
+POST /api/v1/predictions/ensemble-config/reset/  → reset to defaults
 """
 
 import logging
 
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.views import APIView
+from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema
 
 from core.responses import success_response, error_response
 from core.pagination import StandardResultsPagination
 from core.permissions import IsPatient
 
-from .models import PredictionResult
+from .models import PredictionResult, EnsembleWeightConfig
 
 logger = logging.getLogger(__name__)
-from .serializers import PredictionResultSerializer
+from .serializers import PredictionResultSerializer, EnsembleWeightConfigSerializer
 
 
 class LatestPredictionView(APIView):
@@ -607,3 +611,125 @@ class RPPGEscalationView(APIView):
                 message="rPPG escalation processed. Healthcare provider notified."
             )
         return success_response(message="No escalation needed.")
+
+
+class EnsembleWeightConfigListView(APIView):
+    """
+    GET /api/v1/predictions/ensemble-config/
+    List all ensemble weight configurations.
+    Admin only.
+    """
+
+    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    @extend_schema(
+        tags=["Admin"],
+        summary="List ensemble weight configurations",
+        description="Returns all disease-specific ensemble weight configurations for the weighted risk calculation.",
+    )
+    def get(self, request):
+        configs = EnsembleWeightConfig.objects.filter(is_active=True)
+        serializer = EnsembleWeightConfigSerializer(configs, many=True)
+        return Response(
+            {
+                "success": True,
+                "data": {
+                    "configurations": serializer.data,
+                },
+            }
+        )
+
+
+class EnsembleWeightConfigDetailView(APIView):
+    """
+    PUT /api/v1/predictions/ensemble-config/<disease>/
+    Update a specific disease's weight configuration.
+    Admin only.
+    """
+
+    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    @extend_schema(
+        tags=["Admin"],
+        summary="Update ensemble weight configuration",
+        description="Update the weight configuration for a specific disease. Weights must sum to 1.0.",
+        request=EnsembleWeightConfigSerializer,
+        responses={200: EnsembleWeightConfigSerializer},
+    )
+    def put(self, request, disease_name):
+        try:
+            config = EnsembleWeightConfig.objects.get(disease_name=disease_name)
+        except EnsembleWeightConfig.DoesNotExist:
+            return Response(
+                {
+                    "success": False,
+                    "message": f"Configuration for disease '{disease_name}' not found.",
+                },
+                status=404,
+            )
+
+        serializer = EnsembleWeightConfigSerializer(config, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(
+                {
+                    "success": True,
+                    "message": f"Weights updated for {disease_name}.",
+                    "data": serializer.data,
+                }
+            )
+
+        return Response(
+            {
+                "success": False,
+                "message": "Validation error.",
+                "errors": serializer.errors,
+            },
+            status=400,
+        )
+
+
+class EnsembleWeightConfigResetView(APIView):
+    """
+    POST /api/v1/predictions/ensemble-config/reset/
+    Reset all configurations to defaults.
+    Admin only.
+    """
+
+    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    @extend_schema(
+        tags=["Admin"],
+        summary="Reset ensemble weights to defaults",
+        description="Resets all disease weight configurations to their default values.",
+    )
+    def post(self, request):
+        # Deactivate existing configs
+        EnsembleWeightConfig.objects.all().update(is_active=False)
+
+        # Create new defaults
+        default_weights = EnsembleWeightConfig.get_default_weights()
+        created = []
+
+        for disease_name, weights in default_weights.items():
+            config = EnsembleWeightConfig.objects.create(
+                disease_name=disease_name,
+                symptom_weight=weights["symptom"],
+                menstrual_weight=weights["menstrual"],
+                rppg_weight=weights["rppg"],
+                mood_weight=weights["mood"],
+                is_active=True,
+            )
+            created.append(config.disease_name)
+
+        logger.info("Ensemble weights reset to defaults by %s", request.user.email)
+
+        return Response(
+            {
+                "success": True,
+                "message": f"Reset {len(created)} configurations to defaults.",
+                "data": {
+                    "diseases": created,
+                },
+            }
+        )

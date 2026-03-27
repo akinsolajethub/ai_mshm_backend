@@ -239,13 +239,41 @@ class ComprehensivePredictionResult(models.Model):
     final_risk_score = models.FloatField(
         default=0.0,
         validators=[MinValueValidator(0.0), MaxValueValidator(1.0)],
-        help_text="Final PCOS risk score from MAX across all models",
+        help_text="Final PCOS risk score from weighted ensemble",
     )
     risk_tier = models.CharField(
         max_length=10,
         choices=RiskTier.choices,
         default=RiskTier.LOW,
         help_text="Patient-facing risk tier label",
+    )
+
+    # PCOS-specific score (separate from overall risk)
+    pcos_specific_score = models.FloatField(
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(0.0), MaxValueValidator(1.0)],
+        help_text="PCOS-specific risk score with clinical rule adjustments",
+    )
+
+    # Per-disease scores from weighted ensemble
+    per_disease_scores = models.JSONField(
+        default=dict, help_text="Disease-specific scores: {'PCOS': 0.42, 'CVD': 0.55, ...}"
+    )
+
+    # Weights used for calculation
+    weights_used = models.JSONField(
+        default=dict, help_text="Final weights after data quality adjustment"
+    )
+
+    # Clinical rules triggered
+    clinical_rules_triggered = models.JSONField(
+        default=list, help_text="List of clinical rules that were applied"
+    )
+
+    # Full calculation breakdown
+    calculation_breakdown = models.JSONField(
+        default=dict, help_text="Full breakdown: base scores, boost applied, data quality"
     )
 
     # All model outputs (raw predictions from each layer)
@@ -326,3 +354,129 @@ class ComprehensivePredictionResult(models.Model):
             return cls.RiskTier.HIGH
         else:
             return cls.RiskTier.CRITICAL
+
+
+class EnsembleWeightConfig(models.Model):
+    """
+    Stores ensemble weights per disease - configurable by clinical admin.
+
+    This model allows clinical staff to adjust how much each ML model
+    contributes to each disease's risk score.
+
+    Default weights sum to 1.0 for each disease.
+    """
+
+    DISEASE_CHOICES = [
+        ("PCOS", "PCOS"),
+        ("CVD", "Cardiovascular Disease"),
+        ("T2D", "Type 2 Diabetes"),
+        ("Infertility", "Infertility"),
+        ("Dysmenorrhea", "Dysmenorrhea"),
+        ("Metabolic", "Metabolic Syndrome"),
+        ("MentalHealth", "Mental Health"),
+        ("Stroke", "Stroke Risk"),
+        ("Endometrial", "Endometrial Cancer"),
+    ]
+
+    disease_name = models.CharField(
+        max_length=50,
+        unique=True,
+        choices=DISEASE_CHOICES,
+        help_text="Disease this weight configuration applies to",
+    )
+
+    # Model weights (must sum to 1.0)
+    symptom_weight = models.FloatField(
+        default=0.30,
+        validators=[MinValueValidator(0.0), MaxValueValidator(1.0)],
+        help_text="Weight for Symptom Intensity model (0.0-1.0)",
+    )
+    menstrual_weight = models.FloatField(
+        default=0.25,
+        validators=[MinValueValidator(0.0), MaxValueValidator(1.0)],
+        help_text="Weight for Menstrual model (0.0-1.0)",
+    )
+    rppg_weight = models.FloatField(
+        default=0.25,
+        validators=[MinValueValidator(0.0), MaxValueValidator(1.0)],
+        help_text="Weight for rPPG/HRV model (0.0-1.0)",
+    )
+    mood_weight = models.FloatField(
+        default=0.20,
+        validators=[MinValueValidator(0.0), MaxValueValidator(1.0)],
+        help_text="Weight for Mood model (0.0-1.0)",
+    )
+
+    # Clinical rule amplifications
+    rotterdam_2_criteria_boost = models.FloatField(
+        default=0.05,
+        validators=[MinValueValidator(0.0), MaxValueValidator(0.2)],
+        help_text="Boost when 2 Rotterdam criteria are met (+0.05 default)",
+    )
+    rotterdam_3_criteria_boost = models.FloatField(
+        default=0.10,
+        validators=[MinValueValidator(0.0), MaxValueValidator(0.3)],
+        help_text="Boost when all 3 Rotterdam criteria are met (+0.10 default)",
+    )
+    metabolic_reproductive_boost = models.FloatField(
+        default=0.05,
+        validators=[MinValueValidator(0.0), MaxValueValidator(0.2)],
+        help_text="Boost when metabolic + reproductive both high (+0.05 default)",
+    )
+    mood_rppg_stress_boost = models.FloatField(
+        default=0.03,
+        validators=[MinValueValidator(0.0), MaxValueValidator(0.2)],
+        help_text="Boost when mood + rPPG stress both moderate+ (+0.03 default)",
+    )
+
+    is_active = models.BooleanField(
+        default=True, help_text="Whether this configuration is currently active"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        app_label = "predictions"
+        verbose_name = "Ensemble Weight Configuration"
+        verbose_name_plural = "Ensemble Weight Configurations"
+
+    def __str__(self):
+        return f"{self.disease_name} - Symptom:{self.symptom_weight} Menstrual:{self.menstrual_weight} rPPG:{self.rppg_weight} Mood:{self.mood_weight}"
+
+    def clean(self):
+        """Validate that weights sum to 1.0"""
+        from django.core.exceptions import ValidationError
+
+        total = self.symptom_weight + self.menstrual_weight + self.rppg_weight + self.mood_weight
+        if abs(total - 1.0) > 0.001:
+            raise ValidationError(
+                {"symptom_weight": f"Weights must sum to 1.0 (current sum: {total:.3f})"}
+            )
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def get_default_weights(cls) -> dict:
+        """Return default weights if no config exists."""
+        return {
+            "PCOS": {"symptom": 0.30, "menstrual": 0.35, "rppg": 0.20, "mood": 0.15},
+            "CVD": {"symptom": 0.20, "menstrual": 0.20, "rppg": 0.40, "mood": 0.20},
+            "T2D": {"symptom": 0.25, "menstrual": 0.25, "rppg": 0.35, "mood": 0.15},
+            "Infertility": {"symptom": 0.25, "menstrual": 0.40, "rppg": 0.20, "mood": 0.15},
+            "Dysmenorrhea": {"symptom": 0.40, "menstrual": 0.35, "rppg": 0.10, "mood": 0.15},
+            "Metabolic": {"symptom": 0.20, "menstrual": 0.20, "rppg": 0.45, "mood": 0.15},
+            "MentalHealth": {"symptom": 0.20, "menstrual": 0.15, "rppg": 0.25, "mood": 0.40},
+            "Stroke": {"symptom": 0.20, "menstrual": 0.20, "rppg": 0.35, "mood": 0.25},
+            "Endometrial": {"symptom": 0.30, "menstrual": 0.45, "rppg": 0.15, "mood": 0.10},
+        }
+
+    def get_weight_dict(self) -> dict:
+        """Return weights as a dict with model names as keys."""
+        return {
+            "symptom": self.symptom_weight,
+            "menstrual": self.menstrual_weight,
+            "rppg": self.rppg_weight,
+            "mood": self.mood_weight,
+        }

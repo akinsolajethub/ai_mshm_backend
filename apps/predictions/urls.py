@@ -15,6 +15,9 @@ from .views import (
     MoodEscalationView,
     MenstrualEscalationView,
     RPPGEscalationView,
+    EnsembleWeightConfigListView,
+    EnsembleWeightConfigDetailView,
+    EnsembleWeightConfigResetView,
 )
 
 app_name = "predictions"
@@ -30,6 +33,18 @@ urlpatterns = [
     path("escalate/mood/", MoodEscalationView.as_view(), name="escalate-mood"),
     path("escalate/menstrual/", MenstrualEscalationView.as_view(), name="escalate-menstrual"),
     path("escalate/rppg/", RPPGEscalationView.as_view(), name="escalate-rppg"),
+    # Ensemble weight configuration (admin only)
+    path("ensemble-config/", EnsembleWeightConfigListView.as_view(), name="ensemble-config-list"),
+    path(
+        "ensemble-config/reset/",
+        EnsembleWeightConfigResetView.as_view(),
+        name="ensemble-config-reset",
+    ),
+    path(
+        "ensemble-config/<str:disease_name>/",
+        EnsembleWeightConfigDetailView.as_view(),
+        name="ensemble-config-detail",
+    ),
     path("<uuid:pk>/", PredictionDetailView.as_view(), name="detail"),
     path("<uuid:pk>/features/", PredictionFeaturesView.as_view(), name="features"),
 ]
