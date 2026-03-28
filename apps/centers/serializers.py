@@ -360,6 +360,94 @@ class PHCWalkInSerializer(serializers.Serializer):
         return value
 
 
+class PHCWalkInComprehensiveSerializer(serializers.Serializer):
+    """
+    Comprehensive walk-in registration with all health data.
+    Used by PHC staff to register a patient with full assessment data.
+    """
+
+    first_name = serializers.CharField(max_length=100)
+    last_name = serializers.CharField(max_length=100)
+    email = serializers.EmailField(required=False, allow_blank=True)
+    phone = serializers.CharField(max_length=30, required=False, allow_blank=True)
+    date_of_birth = serializers.DateField(required=False, allow_null=True)
+    gender = serializers.ChoiceField(
+        choices=["female", "intersex", "prefer_not_to_say"], default="female"
+    )
+    ethnicity = serializers.ChoiceField(
+        choices=[
+            "african",
+            "asian",
+            "caucasian",
+            "hispanic",
+            "middle_eastern",
+            "other",
+            "prefer_not_to_say",
+        ],
+        required=False,
+        allow_blank=True,
+    )
+    family_history = serializers.ListField(
+        child=serializers.CharField(), required=False, default=list
+    )
+
+    height_cm = serializers.FloatField(required=False, allow_null=True)
+    weight_kg = serializers.FloatField(required=False, allow_null=True)
+    waist_cm = serializers.FloatField(required=False, allow_null=True)
+    hip_cm = serializers.FloatField(required=False, allow_null=True)
+    acanthosis_nigricans = serializers.ChoiceField(
+        choices=["yes", "no", "not_sure"], required=False, allow_blank=True
+    )
+    skin_tags = serializers.ChoiceField(choices=["yes", "no"], required=False, allow_blank=True)
+    scalp_hair_thinning = serializers.ChoiceField(
+        choices=["yes", "no", "unsure"], required=False, allow_blank=True
+    )
+
+    cycle_regularity = serializers.ChoiceField(
+        choices=["regular", "irregular", "not_sure"], required=False, allow_blank=True
+    )
+    typical_cycle_length = serializers.IntegerField(required=False, allow_null=True)
+    periods_per_year = serializers.IntegerField(required=False, allow_null=True)
+    last_period_date = serializers.DateField(required=False, allow_null=True)
+    bleeding_intensity = serializers.ChoiceField(
+        choices=["spotting", "light", "medium", "heavy", "very_heavy"],
+        required=False,
+        allow_blank=True,
+    )
+    acne_severity = serializers.ChoiceField(
+        choices=["none", "mild", "moderate", "severe"], required=False, allow_blank=True
+    )
+    night_sweats = serializers.ChoiceField(
+        choices=["none", "occasional", "frequent", "every_night"], required=False, allow_blank=True
+    )
+    breast_soreness = serializers.ChoiceField(
+        choices=["none", "mild", "moderate", "severe"], required=False, allow_blank=True
+    )
+    muscle_weakness = serializers.ChoiceField(
+        choices=["none", "mild", "moderate", "significant"], required=False, allow_blank=True
+    )
+    cramp_severity = serializers.IntegerField(min_value=0, max_value=10, required=False)
+    fatigue_level = serializers.ChoiceField(
+        choices=["none", "mild", "moderate", "severe"], required=False, allow_blank=True
+    )
+    high_blood_pressure = serializers.ChoiceField(
+        choices=["yes", "no", "not_sure"], required=False, allow_blank=True
+    )
+    abdominal_weight = serializers.ChoiceField(
+        choices=["no", "mild", "significant"], required=False, allow_blank=True
+    )
+    hypoglycemia_symptoms = serializers.ListField(
+        child=serializers.CharField(), required=False, default=list
+    )
+
+    consent_given = serializers.BooleanField(default=False)
+
+    def validate_email(self, value):
+        if value and User.objects.filter(email=value).exists():
+            raise serializers.ValidationError("A patient with this email already exists.")
+        return value
+
+
 # ── Change Request ────────────────────────────────────────────────────────────
 
 

@@ -69,6 +69,7 @@ from .serializers import (
     CreateClinicianSerializer,
     ChangeRequestSerializer,
     PHCWalkInSerializer,
+    PHCWalkInComprehensiveSerializer,
 )
 
 User = get_user_model()
@@ -495,6 +496,107 @@ class PHCWalkInView(APIView):
                 "phc_record_id": str(record.id),
                 "registered_hcc": hcc.name,
                 "temp_password": temp_password,  # Staff shares this with patient
+            },
+            message=(
+                f"Patient registered successfully and linked to {hcc.name}. "
+                "Share the temporary password with the patient."
+            ),
+        )
+
+
+class PHCWalkInComprehensiveView(APIView):
+    """
+    POST /api/v1/centers/phc/walk-in/comprehensive/
+
+    Comprehensive walk-in registration with full health data.
+    Creates patient, onboarding profile, and triggers predictions.
+    """
+
+    permission_classes = [IsAuthenticated, IsAnyPHCUser]
+
+    @extend_schema(
+        tags=["PHC Portal"],
+        summary="Register walk-in patient with full assessment (PHC4)",
+        description="Comprehensive registration including demographics, measurements, and symptoms.",
+    )
+    def post(self, request):
+        hcc = _get_user_hcc(request.user)
+        if not hcc:
+            return error_response("No PHC facility linked to your account.", http_status=404)
+
+        serializer = PHCWalkInComprehensiveSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        temp_password = _generate_temp_password()
+        full_name = f"{data['first_name']} {data['last_name']}"
+
+        email = data.get("email") or f"walkin_{uuid.uuid4().hex[:8]}@placeholder.local"
+
+        patient = User.objects.create_user(
+            email=email,
+            password=temp_password,
+            full_name=full_name,
+            role=User.Role.PATIENT,
+            is_email_verified=True,
+        )
+
+        from apps.onboarding.models import OnboardingProfile
+
+        profile = OnboardingProfile.objects.create(
+            user=patient,
+            full_name=full_name,
+            state=hcc.state,
+            lga=hcc.lga,
+            registered_hcc=hcc,
+            height_cm=data.get("height_cm"),
+            weight_kg=data.get("weight_kg"),
+            cycle_regularity=data.get("cycle_regularity", ""),
+            cycle_length_days=data.get("typical_cycle_length"),
+            periods_per_year=data.get("periods_per_year"),
+            has_skin_changes=True if data.get("acanthosis_nigricans") == "yes" else False,
+        )
+
+        if profile.height_cm and profile.weight_kg:
+            profile.bmi = round(profile.weight_kg / ((profile.height_cm / 100) ** 2), 1)
+            profile.save(update_fields=["bmi"])
+
+        condition_map = {
+            "pcos": PHCPatientRecord.Condition.PCOS,
+            "maternal": PHCPatientRecord.Condition.MATERNAL,
+            "cardiovascular": PHCPatientRecord.Condition.CARDIOVASCULAR,
+        }
+        record = PHCPatientRecord.objects.create(
+            patient=patient,
+            hcc=hcc,
+            condition=PHCPatientRecord.Condition.PCOS,
+            severity="moderate",
+            status=PHCPatientRecord.RecordStatus.NEW,
+        )
+
+        from apps.predictions.signals import trigger_comprehensive_prediction
+
+        try:
+            trigger_comprehensive_prediction(patient)
+        except Exception as e:
+            logger.warning("Failed to trigger prediction for walk-in patient: %s", e)
+
+        logger.info(
+            "Walk-in patient (comprehensive) registered: %s at PHC '%s' by staff %s",
+            patient.email,
+            hcc.name,
+            request.user.email,
+        )
+
+        return created_response(
+            data={
+                "patient_id": str(patient.id),
+                "patient_email": patient.email,
+                "patient_name": patient.full_name,
+                "phc_record_id": str(record.id),
+                "registered_hcc": hcc.name,
+                "temp_password": temp_password,
+                "phone": data.get("phone", ""),
             },
             message=(
                 f"Patient registered successfully and linked to {hcc.name}. "

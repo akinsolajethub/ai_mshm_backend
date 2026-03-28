@@ -47,69 +47,101 @@ PLATFORM ADMIN:
   GET/POST        /admin/fmc/
   GET/PATCH/DELETE /admin/fmc/<uuid>/
 """
+
 from django.urls import path
 from .views import (
     # Public
-    HCCListPublicView, FHCListPublicView,
+    HCCListPublicView,
+    FHCListPublicView,
     # PHC Portal
-    PHCPatientQueueView, PHCPatientRecordView, PHCEscalateView, PHCWalkInView,
+    PHCPatientQueueView,
+    PHCPatientRecordView,
+    PHCEscalateView,
+    PHCWalkInView,
+    PHCWalkInComprehensiveView,
     # PHC Admin
-    PHCProfileView, PHCStaffListView, PHCStaffDetailView,
+    PHCProfileView,
+    PHCStaffListView,
+    PHCStaffDetailView,
     # FMC Portal
-    FMCCaseListView, FMCCaseDetailView, FMCAssignClinicianView, FMCDischargeCaseView,
+    FMCCaseListView,
+    FMCCaseDetailView,
+    FMCAssignClinicianView,
+    FMCDischargeCaseView,
     # FMC Admin
-    FMCProfileView, FMCStaffListView, FMCStaffDetailView,
-    FMCClinicianListView, FMCClinicianDetailView, FMCVerifyClinicianView,
+    FMCProfileView,
+    FMCStaffListView,
+    FMCStaffDetailView,
+    FMCClinicianListView,
+    FMCClinicianDetailView,
+    FMCVerifyClinicianView,
     # Clinician
-    ClinicianCaseListView, ClinicianCaseDetailView, ClinicianProfileView,
+    ClinicianCaseListView,
+    ClinicianCaseDetailView,
+    ClinicianProfileView,
     # Patient
-    ChangeRequestListView, ChangeRequestDetailView,
+    ChangeRequestListView,
+    ChangeRequestDetailView,
     # Platform Admin
-    HCCAdminListView, HCCAdminDetailView, FHCAdminListView, FHCAdminDetailView,
+    HCCAdminListView,
+    HCCAdminDetailView,
+    FHCAdminListView,
+    FHCAdminDetailView,
 )
 
 app_name = "centers"
 
 urlpatterns = [
-
     # ── Public ───────────────────────────────────────────────────────────────
-    path("phc/",  HCCListPublicView.as_view(),  name="phc-list-public"),
-    path("fmc/",  FHCListPublicView.as_view(),  name="fmc-list-public"),
-
+    path("phc/", HCCListPublicView.as_view(), name="phc-list-public"),
+    path("fmc/", FHCListPublicView.as_view(), name="fmc-list-public"),
     # ── PHC Portal (staff + admin) ────────────────────────────────────────────
-    path("phc/queue/",                        PHCPatientQueueView.as_view(),   name="phc-queue"),
-    path("phc/queue/<uuid:pk>/",              PHCPatientRecordView.as_view(),  name="phc-record-detail"),
-    path("phc/queue/<uuid:pk>/escalate/",     PHCEscalateView.as_view(),       name="phc-escalate"),
-    path("phc/walk-in/",                      PHCWalkInView.as_view(),         name="phc-walk-in"),
-
+    path("phc/queue/", PHCPatientQueueView.as_view(), name="phc-queue"),
+    path("phc/queue/<uuid:pk>/", PHCPatientRecordView.as_view(), name="phc-record-detail"),
+    path("phc/queue/<uuid:pk>/escalate/", PHCEscalateView.as_view(), name="phc-escalate"),
+    path("phc/walk-in/", PHCWalkInView.as_view(), name="phc-walk-in"),
+    path(
+        "phc/walk-in/comprehensive/",
+        PHCWalkInComprehensiveView.as_view(),
+        name="phc-walk-in-comprehensive",
+    ),
     # ── PHC Admin ─────────────────────────────────────────────────────────────
-    path("phc/profile/",                      PHCProfileView.as_view(),        name="phc-profile"),
-    path("phc/staff/",                        PHCStaffListView.as_view(),      name="phc-staff-list"),
-    path("phc/staff/<uuid:pk>/",              PHCStaffDetailView.as_view(),    name="phc-staff-detail"),
-
+    path("phc/profile/", PHCProfileView.as_view(), name="phc-profile"),
+    path("phc/staff/", PHCStaffListView.as_view(), name="phc-staff-list"),
+    path("phc/staff/<uuid:pk>/", PHCStaffDetailView.as_view(), name="phc-staff-detail"),
     # ── FMC Portal (staff + admin) ────────────────────────────────────────────
-    path("fmc/cases/",                        FMCCaseListView.as_view(),       name="fmc-case-list"),
-    path("fmc/cases/<uuid:pk>/",              FMCCaseDetailView.as_view(),     name="fmc-case-detail"),
-    path("fmc/cases/<uuid:pk>/assign/",       FMCAssignClinicianView.as_view(),name="fmc-case-assign"),
-    path("fmc/cases/<uuid:pk>/discharge/",    FMCDischargeCaseView.as_view(),  name="fmc-case-discharge"),
-
+    path("fmc/cases/", FMCCaseListView.as_view(), name="fmc-case-list"),
+    path("fmc/cases/<uuid:pk>/", FMCCaseDetailView.as_view(), name="fmc-case-detail"),
+    path("fmc/cases/<uuid:pk>/assign/", FMCAssignClinicianView.as_view(), name="fmc-case-assign"),
+    path(
+        "fmc/cases/<uuid:pk>/discharge/", FMCDischargeCaseView.as_view(), name="fmc-case-discharge"
+    ),
     # ── FMC Admin ─────────────────────────────────────────────────────────────
-    path("fmc/profile/",                      FMCProfileView.as_view(),        name="fmc-profile"),
-    path("fmc/staff/",                        FMCStaffListView.as_view(),      name="fmc-staff-list"),
-    path("fmc/staff/<uuid:pk>/",              FMCStaffDetailView.as_view(),    name="fmc-staff-detail"),
-    path("fmc/clinicians/",                   FMCClinicianListView.as_view(),  name="fmc-clinician-list"),
-    path("fmc/clinicians/<uuid:pk>/",         FMCClinicianDetailView.as_view(),name="fmc-clinician-detail"),
-    path("fmc/clinicians/<uuid:pk>/verify/",  FMCVerifyClinicianView.as_view(),name="fmc-clinician-verify"),
-
+    path("fmc/profile/", FMCProfileView.as_view(), name="fmc-profile"),
+    path("fmc/staff/", FMCStaffListView.as_view(), name="fmc-staff-list"),
+    path("fmc/staff/<uuid:pk>/", FMCStaffDetailView.as_view(), name="fmc-staff-detail"),
+    path("fmc/clinicians/", FMCClinicianListView.as_view(), name="fmc-clinician-list"),
+    path(
+        "fmc/clinicians/<uuid:pk>/", FMCClinicianDetailView.as_view(), name="fmc-clinician-detail"
+    ),
+    path(
+        "fmc/clinicians/<uuid:pk>/verify/",
+        FMCVerifyClinicianView.as_view(),
+        name="fmc-clinician-verify",
+    ),
     # ── Clinician ─────────────────────────────────────────────────────────────
-    path("clinician/cases/",                  ClinicianCaseListView.as_view(), name="clinician-case-list"),
-    path("clinician/cases/<uuid:pk>/",        ClinicianCaseDetailView.as_view(),name="clinician-case-detail"),
-    path("clinician/profile/",                ClinicianProfileView.as_view(),  name="clinician-profile"),
-
+    path("clinician/cases/", ClinicianCaseListView.as_view(), name="clinician-case-list"),
+    path(
+        "clinician/cases/<uuid:pk>/",
+        ClinicianCaseDetailView.as_view(),
+        name="clinician-case-detail",
+    ),
+    path("clinician/profile/", ClinicianProfileView.as_view(), name="clinician-profile"),
     # ── Patient ───────────────────────────────────────────────────────────────
-    path("change-request/",                   ChangeRequestListView.as_view(), name="change-request-list"),
-    path("change-request/<uuid:pk>/",         ChangeRequestDetailView.as_view(),name="change-request-detail"),
-
+    path("change-request/", ChangeRequestListView.as_view(), name="change-request-list"),
+    path(
+        "change-request/<uuid:pk>/", ChangeRequestDetailView.as_view(), name="change-request-detail"
+    ),
     # ── Platform Admin ────────────────────────────────────────────────────────
     # path("admin/phc/",                        HCCAdminListView.as_view(),      name="admin-phc-list"),
     # path("admin/phc/<uuid:pk>/",              HCCAdminDetailView.as_view(),    name="admin-phc-detail"),

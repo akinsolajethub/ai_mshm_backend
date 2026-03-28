@@ -1686,6 +1686,7 @@ try {
 | `/notifications/<id>/read/` | PATCH | Both | Mark single as read |
 | `/notifications/mark-all-read/` | PATCH | Both | Mark all as read |
 | `/centers/hcc/staff/` | POST | Admin | Create staff member |
+| `/centers/phc/walk-in/comprehensive/` | POST | PHC Staff | Comprehensive walk-in registration |
 
 ---
 
