@@ -2,6 +2,8 @@
 
 **AI-Driven Multi-Source Health Measurement System** — Django REST API
 
+**Version**: Weighted Ensemble v2.0
+
 ---
 
 ## Tech Stack
