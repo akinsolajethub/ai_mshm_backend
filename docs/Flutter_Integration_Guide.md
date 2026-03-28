@@ -762,83 +762,216 @@ Future<void> markAllNotificationsRead() async {
 
 ### Notification Bell Badge
 ```dart
-class NotificationBell extends StatelessWidget {
+class NotificationBell extends StatefulWidget {
+  @override
+  _NotificationBellState createState() => _NotificationBellState();
+}
+
+class _NotificationBellState extends State<NotificationBell> {
+  int _unreadCount = 0;
+  
+  @override
+  void initState() {
+    super.initState();
+    _fetchUnreadCount();
+    // Poll every 30 seconds
+    Timer.periodic(Duration(seconds: 30), (_) => _fetchUnreadCount());
+  }
+  
+  Future<void> _fetchUnreadCount() async {
+    try {
+      final count = await _getUnreadCount();
+      if (mounted) setState(() => _unreadCount = count);
+    } catch {
+      // ignore
+    }
+  }
+  
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<int>(
-      future: _getUnreadCount(),
-      builder: (context, snapshot) {
-        final count = snapshot.data ?? 0;
-        return Stack(
-          children: [
-            IconButton(
-              icon: Icon(Icons.notifications),
-              onPressed: () => Navigator.pushNamed(context, '/notifications'),
-            ),
-            if (count > 0)
-              Positioned(
-                right: 8,
-                top: 8,
-                child: Container(
-                  padding: EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: Colors.red,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Text(
-                    count > 99 ? '99+' : count.toString(),
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 10,
-                    ),
-                  ),
+    return IconButton(
+      icon: Stack(
+        children: [
+          Icon(Icons.notifications),
+          if (_unreadCount > 0)
+            Positioned(
+              right: 0,
+              top: 0,
+              child: Container(
+                padding: EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: Colors.red,
+                  shape: BoxShape.circle,
+                ),
+                constraints: BoxConstraints(minWidth: 16, minHeight: 16),
+                child: Text(
+                  _unreadCount > 99 ? '99+' : _unreadCount.toString(),
+                  style: TextStyle(color: Colors.white, fontSize: 10),
+                  textAlign: TextAlign.center,
                 ),
               ),
-          ],
-        );
-      },
+            ),
+        ],
+      ),
+      onPressed: () => Navigator.pushNamed(context, '/notifications'),
     );
   }
 }
 ```
 
-### Notification Panel with Mark All:
+### Notification Panel with Click Navigation:
 ```dart
-class NotificationPanel extends StatelessWidget {
+class NotificationPanel extends StatefulWidget {
+  @override
+  _NotificationPanelState createState() => _NotificationPanelState();
+}
+
+class _NotificationPanelState extends State<NotificationPanel> {
+  List<Map<String, dynamic>> _notifications = [];
+  int _unreadCount = 0;
+  bool _isLoading = true;
+  
+  @override
+  void initState() {
+    super.initState();
+    _fetchNotifications();
+    _fetchUnreadCount();
+  }
+  
+  Future<void> _fetchNotifications() async {
+    try {
+      final data = await getNotifications();
+      setState(() {
+        _notifications = List<Map<String, dynamic>>.from(data);
+        _isLoading = false;
+      });
+    } catch {
+      setState(() => _isLoading = false);
+    }
+  }
+  
+  Future<void> _fetchUnreadCount() async {
+    try {
+      final count = await _getUnreadCount();
+      if (mounted) setState(() => _unreadCount = count);
+    } catch {
+      if (mounted) setState(() => _unreadCount = 0);
+    }
+  }
+  
+  Future<void> _markAllRead() async {
+    try {
+      await markAllNotificationsRead();
+      setState(() {
+        _notifications = _notifications.map((n) => {...n, 'is_read': true}).toList();
+        _unreadCount = 0;
+      });
+    } catch {
+      // silent fail
+    }
+  }
+  
+  void _handleNotificationTap(BuildContext context, Map<String, dynamic> notification) async {
+    // Mark as read
+    if (!(notification['is_read'] ?? true)) {
+      await markNotificationRead(notification['id']);
+      setState(() {
+        final idx = _notifications.indexWhere((n) => n['id'] == notification['id']);
+        if (idx != -1) {
+          _notifications[idx] = {..._notifications[idx], 'is_read': true};
+        }
+        _unreadCount = (_unreadCount - 1).clamp(0, _unreadCount);
+      });
+    }
+    
+    // Navigate to patient detail
+    final data = notification['data'] ?? {};
+    final patientId = data['patient_id'] ?? notification['patient_id'];
+    
+    if (patientId != null) {
+      Navigator.pushNamed(context, '/phc/patients/$patientId');
+    }
+  }
+  
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Notifications'),
+        title: Row(
+          children: [
+            Text('Notifications'),
+            if (_unreadCount > 0) ...[
+              SizedBox(width: 8),
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.red,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '$_unreadCount',
+                  style: TextStyle(color: Colors.white, fontSize: 12),
+                ),
+              ),
+            ],
+          ],
+        ),
         actions: [
-          TextButton(
-            onPressed: () => _markAllRead(context),
-            child: Text('Mark All Read'),
-          ),
+          if (_unreadCount > 0)
+            TextButton.icon(
+              onPressed: _markAllRead,
+              icon: Icon(Icons.done_all, size: 18),
+              label: Text('Mark All Read'),
+            ),
         ],
       ),
-      body: ListView.builder(
-        itemCount: notifications.length,
-        itemBuilder: (context, index) {
-          final notification = notifications[index];
-          return ListTile(
-            leading: Icon(_getIcon(notification['notification_type'])),
-            title: Text(notification['title']),
-            subtitle: Text(notification['body'] ?? notification['message']),
-            trailing: notification['is_read'] 
-                ? null 
-                : Container(
-                    width: 8,
-                    height: 8,
-                    decoration: BoxDecoration(
-                      color: Colors.blue,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-            onTap: () => _handleNotificationTap(context, notification),
-          );
-        },
-      ),
+      body: _isLoading
+          ? Center(child: CircularProgressIndicator())
+          : _notifications.isEmpty
+              ? Center(child: Text('No notifications'))
+              : ListView.builder(
+                  itemCount: _notifications.length,
+                  itemBuilder: (context, index) {
+                    final notification = _notifications[index];
+                    final isRead = notification['is_read'] ?? false;
+                    return ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: _getIconColor(notification['notification_type']),
+                        child: Icon(
+                          _getIcon(notification['notification_type']),
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                      ),
+                      title: Text(
+                        notification['title'] ?? 'Notification',
+                        style: TextStyle(
+                          fontWeight: isRead ? FontWeight.normal : FontWeight.bold,
+                        ),
+                      ),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(notification['body'] ?? ''),
+                          if (notification['data']?['severity'] != null)
+                            Text(
+                              'Severity: ${notification['data']['severity']}',
+                              style: TextStyle(fontSize: 12),
+                            ),
+                        ],
+                      ),
+                      trailing: isRead ? null : Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: Colors.blue,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      onTap: () => _handleNotificationTap(context, notification),
+                    );
+                  },
+                ),
     );
   }
 }
@@ -1527,6 +1660,7 @@ try {
 - [ ] Historical trend charts
 - [ ] PWA manifest and service worker
 - [ ] Temp password dialog for staff creation
+- [ ] Notification polling in layout header
 
 ---
 

@@ -1,9 +1,11 @@
 """
 apps/notifications/views.py
-────────────────────────────
+───────────────────────────
 REST endpoints for in-app notifications.
 Real-time push happens via WebSocket (consumers.py).
 """
+
+import uuid
 from django.utils import timezone
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
@@ -20,6 +22,7 @@ class NotificationListView(APIView):
     GET  /api/v1/notifications/        → paginated list (newest first)
     Query params: ?unread_only=true
     """
+
     permission_classes = [IsAuthenticated]
 
     @extend_schema(tags=["Notifications"], summary="List in-app notifications")
@@ -37,22 +40,22 @@ class NotificationListView(APIView):
 
 class NotificationUnreadCountView(APIView):
     """GET /api/v1/notifications/unread-count/"""
+
     permission_classes = [IsAuthenticated]
 
     @extend_schema(tags=["Notifications"], summary="Get unread notification count")
     def get(self, request):
-        count = Notification.objects.filter(
-            recipient=request.user, is_read=False
-        ).count()
+        count = Notification.objects.filter(recipient=request.user, is_read=False).count()
         return success_response(data={"unread_count": count})
 
 
 class NotificationMarkReadView(APIView):
     """PATCH /api/v1/notifications/<id>/read/"""
+
     permission_classes = [IsAuthenticated]
 
     @extend_schema(tags=["Notifications"], summary="Mark a notification as read")
-    def patch(self, request, pk: int):
+    def patch(self, request, pk: uuid.UUID):
         try:
             notif = Notification.objects.get(pk=pk, recipient=request.user)
         except Notification.DoesNotExist:
@@ -63,6 +66,7 @@ class NotificationMarkReadView(APIView):
 
 class NotificationMarkAllReadView(APIView):
     """PATCH /api/v1/notifications/mark-all-read/"""
+
     permission_classes = [IsAuthenticated]
 
     @extend_schema(tags=["Notifications"], summary="Mark all notifications as read")
@@ -70,15 +74,18 @@ class NotificationMarkAllReadView(APIView):
         qs = Notification.objects.filter(recipient=request.user, is_read=False)
         count = qs.count()
         qs.update(is_read=True, read_at=timezone.now())
-        return success_response(data={"marked_count": count}, message="All notifications marked as read.")
+        return success_response(
+            data={"marked_count": count}, message="All notifications marked as read."
+        )
 
 
 class NotificationDeleteView(APIView):
     """DELETE /api/v1/notifications/<id>/"""
+
     permission_classes = [IsAuthenticated]
 
     @extend_schema(tags=["Notifications"], summary="Delete a notification")
-    def delete(self, request, pk: int):
+    def delete(self, request, pk: uuid.UUID):
         try:
             notif = Notification.objects.get(pk=pk, recipient=request.user)
         except Notification.DoesNotExist:
