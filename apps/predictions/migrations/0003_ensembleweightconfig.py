@@ -4,6 +4,80 @@ from django.db import migrations, models
 import django.core.validators
 
 
+def init_default_weights(apps, schema_editor):
+    """Initialize default weight configurations for all diseases."""
+    EnsembleWeightConfig = apps.get_model("predictions", "EnsembleWeightConfig")
+
+    default_configs = [
+        {
+            "disease_name": "PCOS",
+            "symptom_weight": 0.30,
+            "menstrual_weight": 0.35,
+            "rppg_weight": 0.20,
+            "mood_weight": 0.15,
+        },
+        {
+            "disease_name": "CVD",
+            "symptom_weight": 0.20,
+            "menstrual_weight": 0.20,
+            "rppg_weight": 0.40,
+            "mood_weight": 0.20,
+        },
+        {
+            "disease_name": "T2D",
+            "symptom_weight": 0.25,
+            "menstrual_weight": 0.25,
+            "rppg_weight": 0.35,
+            "mood_weight": 0.15,
+        },
+        {
+            "disease_name": "Infertility",
+            "symptom_weight": 0.25,
+            "menstrual_weight": 0.40,
+            "rppg_weight": 0.20,
+            "mood_weight": 0.15,
+        },
+        {
+            "disease_name": "Dysmenorrhea",
+            "symptom_weight": 0.40,
+            "menstrual_weight": 0.35,
+            "rppg_weight": 0.10,
+            "mood_weight": 0.15,
+        },
+        {
+            "disease_name": "Metabolic",
+            "symptom_weight": 0.20,
+            "menstrual_weight": 0.20,
+            "rppg_weight": 0.45,
+            "mood_weight": 0.15,
+        },
+        {
+            "disease_name": "MentalHealth",
+            "symptom_weight": 0.20,
+            "menstrual_weight": 0.15,
+            "rppg_weight": 0.25,
+            "mood_weight": 0.40,
+        },
+        {
+            "disease_name": "Stroke",
+            "symptom_weight": 0.20,
+            "menstrual_weight": 0.20,
+            "rppg_weight": 0.35,
+            "mood_weight": 0.25,
+        },
+        {
+            "disease_name": "Endometrial",
+            "symptom_weight": 0.30,
+            "menstrual_weight": 0.45,
+            "rppg_weight": 0.15,
+            "mood_weight": 0.10,
+        },
+    ]
+
+    for config in default_configs:
+        EnsembleWeightConfig.objects.create(**config)
+
+
 class Migration(migrations.Migration):
     dependencies = [
         ("predictions", "0002_comprehensivepredictionresult"),
@@ -186,77 +260,3 @@ class Migration(migrations.Migration):
         # Data migration: Initialize default weights for all diseases
         migrations.RunPython(init_default_weights),
     ]
-
-
-def init_default_weights(apps, schema_editor):
-    """Initialize default weight configurations for all diseases."""
-    EnsembleWeightConfig = apps.get_model("predictions", "EnsembleWeightConfig")
-
-    default_configs = [
-        {
-            "disease_name": "PCOS",
-            "symptom_weight": 0.30,
-            "menstrual_weight": 0.35,
-            "rppg_weight": 0.20,
-            "mood_weight": 0.15,
-        },
-        {
-            "disease_name": "CVD",
-            "symptom_weight": 0.20,
-            "menstrual_weight": 0.20,
-            "rppg_weight": 0.40,
-            "mood_weight": 0.20,
-        },
-        {
-            "disease_name": "T2D",
-            "symptom_weight": 0.25,
-            "menstrual_weight": 0.25,
-            "rppg_weight": 0.35,
-            "mood_weight": 0.15,
-        },
-        {
-            "disease_name": "Infertility",
-            "symptom_weight": 0.25,
-            "menstrual_weight": 0.40,
-            "rppg_weight": 0.20,
-            "mood_weight": 0.15,
-        },
-        {
-            "disease_name": "Dysmenorrhea",
-            "symptom_weight": 0.40,
-            "menstrual_weight": 0.35,
-            "rppg_weight": 0.10,
-            "mood_weight": 0.15,
-        },
-        {
-            "disease_name": "Metabolic",
-            "symptom_weight": 0.20,
-            "menstrual_weight": 0.20,
-            "rppg_weight": 0.45,
-            "mood_weight": 0.15,
-        },
-        {
-            "disease_name": "MentalHealth",
-            "symptom_weight": 0.20,
-            "menstrual_weight": 0.15,
-            "rppg_weight": 0.25,
-            "mood_weight": 0.40,
-        },
-        {
-            "disease_name": "Stroke",
-            "symptom_weight": 0.20,
-            "menstrual_weight": 0.20,
-            "rppg_weight": 0.35,
-            "mood_weight": 0.25,
-        },
-        {
-            "disease_name": "Endometrial",
-            "symptom_weight": 0.30,
-            "menstrual_weight": 0.45,
-            "rppg_weight": 0.15,
-            "mood_weight": 0.10,
-        },
-    ]
-
-    for config in default_configs:
-        EnsembleWeightConfig.objects.create(**config)
