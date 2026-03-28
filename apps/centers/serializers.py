@@ -366,13 +366,102 @@ class PHCWalkInComprehensiveSerializer(serializers.Serializer):
     Used by PHC staff to register a patient with full assessment data.
     """
 
-    first_name = serializers.CharField(max_length=100)
-    last_name = serializers.CharField(max_length=100)
-    email = serializers.EmailField(required=False, allow_blank=True)
-    phone = serializers.CharField(max_length=30, required=False, allow_blank=True)
+    first_name = serializers.CharField(max_length=100, allow_blank=False)
+    last_name = serializers.CharField(max_length=100, allow_blank=False)
+    email = serializers.EmailField(required=False, allow_blank=True, allow_null=True)
+    phone = serializers.CharField(max_length=30, required=False, allow_blank=True, allow_null=True)
     date_of_birth = serializers.DateField(required=False, allow_null=True)
     gender = serializers.ChoiceField(
-        choices=["female", "intersex", "prefer_not_to_say"], default="female"
+        choices=["female", "intersex", "prefer_not_to_say"], default="female", required=False
+    )
+    ethnicity = serializers.ChoiceField(
+        choices=[
+            "african",
+            "asian",
+            "caucasian",
+            "hispanic",
+            "middle_eastern",
+            "other",
+            "prefer_not_to_say",
+        ],
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+    )
+    family_history = serializers.ListField(
+        child=serializers.CharField(), required=False, default=list, allow_null=True
+    )
+
+    height_cm = serializers.FloatField(required=False, allow_null=True)
+    weight_kg = serializers.FloatField(required=False, allow_null=True)
+    waist_cm = serializers.FloatField(required=False, allow_null=True)
+    hip_cm = serializers.FloatField(required=False, allow_null=True)
+    acanthosis_nigricans = serializers.ChoiceField(
+        choices=["yes", "no", "not_sure"], required=False, allow_blank=True, allow_null=True
+    )
+    skin_tags = serializers.ChoiceField(
+        choices=["yes", "no"], required=False, allow_blank=True, allow_null=True
+    )
+    scalp_hair_thinning = serializers.ChoiceField(
+        choices=["yes", "no", "unsure"], required=False, allow_blank=True, allow_null=True
+    )
+
+    cycle_regularity = serializers.ChoiceField(
+        choices=["regular", "irregular", "not_sure"],
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+    )
+    typical_cycle_length = serializers.IntegerField(required=False, allow_null=True)
+    periods_per_year = serializers.IntegerField(required=False, allow_null=True)
+    last_period_date = serializers.DateField(required=False, allow_null=True)
+    bleeding_intensity = serializers.ChoiceField(
+        choices=["spotting", "light", "medium", "heavy", "very_heavy"],
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+    )
+    acne_severity = serializers.ChoiceField(
+        choices=["none", "mild", "moderate", "severe"],
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+    )
+    night_sweats = serializers.ChoiceField(
+        choices=["none", "occasional", "frequent", "every_night"],
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+    )
+    breast_soreness = serializers.ChoiceField(
+        choices=["none", "mild", "moderate", "severe"],
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+    )
+    muscle_weakness = serializers.ChoiceField(
+        choices=["none", "mild", "moderate", "significant"],
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+    )
+    cramp_severity = serializers.IntegerField(
+        min_value=0, max_value=10, required=False, allow_null=True
+    )
+    fatigue_level = serializers.ChoiceField(
+        choices=["none", "mild", "moderate", "severe"],
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+    )
+    high_blood_pressure = serializers.ChoiceField(
+        choices=["yes", "no", "not_sure"], required=False, allow_blank=True, allow_null=True
+    )
+    abdominal_weight = serializers.ChoiceField(
+        choices=["no", "mild", "significant"], required=False, allow_blank=True, allow_null=True
+    )
+    hypoglycemia_symptoms = serializers.ListField(
+        child=serializers.CharField(), required=False, default=list, allow_null=True
     )
     ethnicity = serializers.ChoiceField(
         choices=[
@@ -426,7 +515,9 @@ class PHCWalkInComprehensiveSerializer(serializers.Serializer):
     muscle_weakness = serializers.ChoiceField(
         choices=["none", "mild", "moderate", "significant"], required=False, allow_blank=True
     )
-    cramp_severity = serializers.IntegerField(min_value=0, max_value=10, required=False)
+    cramp_severity = serializers.IntegerField(
+        min_value=0, max_value=10, required=False, allow_null=True
+    )
     fatigue_level = serializers.ChoiceField(
         choices=["none", "mild", "moderate", "severe"], required=False, allow_blank=True
     )
