@@ -464,6 +464,7 @@ class MoodEscalationView(APIView):
                     condition="cardiovascular",
                     severity=severity_map[severity],
                     score=score,
+                    disease=disease,  # Pass the specific disease name
                 )
                 escalated = True
                 logger.info(
@@ -529,12 +530,14 @@ class MenstrualEscalationView(APIView):
                     condition=condition,
                     severity=severity_map[severity],
                     score=score,
+                    disease=disease,  # Pass the specific disease name
                 )
                 escalated = True
                 logger.info(
-                    "Menstrual escalation: user=%s disease=%s severity=%s score=%d",
+                    "Menstrual escalation: user=%s disease=%s condition=%s severity=%s score=%d",
                     request.user.email,
                     disease,
+                    condition,
                     severity,
                     score,
                 )
@@ -546,6 +549,7 @@ class MenstrualEscalationView(APIView):
                 condition="pcos",
                 severity=RiskSeverity.MODERATE,
                 score=50,
+                disease="Irregular Cycles",  # Specify the criterion
             )
             escalated = True
             logger.info("Menstrual escalation: Criterion 1 positive for %s", request.user.email)
@@ -601,6 +605,7 @@ class RPPGEscalationView(APIView):
                     condition=condition,
                     severity=severity_map[severity],
                     score=score,
+                    disease=disease,  # Pass the specific disease name
                 )
                 escalated = True
                 logger.info(

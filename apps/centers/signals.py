@@ -12,22 +12,23 @@ FULL ROUTING:
   Patient → registered_hcc → PHCPatientRecord (mild/moderate)
   Patient → registered_hcc → get_escalation_fmc() → PatientCase (severe)
 """
+
 import logging
 from .models import RiskSeverity, PHCPatientRecord, PatientCase
 
 logger = logging.getLogger(__name__)
 
 _CONDITION_LABELS = {
-    "pcos":           "PCOS",
-    "maternal":       "Maternal Health",
+    "pcos": "PCOS",
+    "maternal": "Maternal Health",
     "cardiovascular": "Cardiovascular",
 }
 _SEVERITY_LABELS = dict(RiskSeverity.choices)
 
 # Map string condition to model choice
 _CONDITION_MAP = {
-    "pcos":           PHCPatientRecord.Condition.PCOS,
-    "maternal":       PHCPatientRecord.Condition.MATERNAL,
+    "pcos": PHCPatientRecord.Condition.PCOS,
+    "maternal": PHCPatientRecord.Condition.MATERNAL,
     "cardiovascular": PHCPatientRecord.Condition.CARDIOVASCULAR,
 }
 
@@ -37,29 +38,41 @@ def notify_center_of_critical_risk(
     condition: str,
     severity: str,
     score: int,
+    disease: str = None,
     previous_score: int = None,
 ) -> None:
     """
     Main entry point. Called by PredictionService._escalate().
     Routes notifications and creates records based on severity.
+
+    Args:
+        disease: Specific disease name (e.g., "Infertility", "Endometrial Cancer")
+                 to include in notification for clarity.
     """
     from apps.notifications.models import Notification
     from apps.notifications.services import NotificationService
 
     condition_label = _CONDITION_LABELS.get(condition, condition.title())
-    severity_label  = _SEVERITY_LABELS.get(severity, severity)
-    is_mild_or_mod  = severity in (RiskSeverity.MILD, RiskSeverity.MODERATE)
-    is_very_severe  = severity == RiskSeverity.VERY_SEVERE
+    severity_label = _SEVERITY_LABELS.get(severity, severity)
+    is_mild_or_mod = severity in (RiskSeverity.MILD, RiskSeverity.MODERATE)
+    is_very_severe = severity == RiskSeverity.VERY_SEVERE
+
+    # Format notification title with disease specification
+    if disease:
+        notification_title = f"{severity_label} {condition_label} ({disease})"
+    else:
+        notification_title = f"{severity_label} {condition_label}"
 
     base_data = {
-        "patient_id":     str(patient.id),
-        "patient_email":  patient.email,
-        "patient_name":   patient.full_name,
-        "condition":      condition,
-        "severity":       severity,
-        "score":          score,
+        "patient_id": str(patient.id),
+        "patient_email": patient.email,
+        "patient_name": patient.full_name,
+        "condition": condition,
+        "severity": severity,
+        "score": score,
         "previous_score": previous_score,
-        "action":         "open_patient_risk_report",
+        "action": "open_patient_risk_report",
+        "disease": disease,  # Include disease in data
     }
 
     # ── Step 1: Get patient's registered PHC ──────────────────────────────────
@@ -69,18 +82,24 @@ def notify_center_of_critical_risk(
         _remind_patient_to_set_phc(patient, NotificationService, Notification)
         logger.warning(
             "No registered PHC for patient %s — skipping routing for %s %s",
-            patient.email, condition, severity,
+            patient.email,
+            condition,
+            severity,
         )
         return
 
     # ── Step 2: Mild/Moderate → create PHCPatientRecord + notify PHC ─────────
     if is_mild_or_mod:
         record = _get_or_create_phc_record(
-            patient=patient, hcc=hcc,
-            condition=condition, severity=severity, score=score,
+            patient=patient,
+            hcc=hcc,
+            condition=condition,
+            severity=severity,
+            score=score,
         )
         _notify_phc(
-            hcc=hcc, patient=patient,
+            hcc=hcc,
+            patient=patient,
             condition_label=condition_label,
             severity_label=severity_label,
             score=score,
@@ -97,17 +116,33 @@ def notify_center_of_critical_risk(
         logger.warning(
             "PHC '%s' (state: %s) has no linked FMC. "
             "Cannot route FMC notification for patient %s — %s %s.",
-            hcc.name, hcc.state, patient.email, condition, severity,
+            hcc.name,
+            hcc.state,
+            patient.email,
+            condition,
+            severity,
         )
-        _get_or_create_case(patient=patient, fhc=None,
-                            condition=condition, severity=severity, score=score)
+        _get_or_create_case(
+            patient=patient, fhc=None, condition=condition, severity=severity, score=score
+        )
         return
 
     case = _get_or_create_case(
-        patient=patient, fhc=fmc,
-        condition=condition, severity=severity, score=score,
+        patient=patient,
+        fhc=fmc,
+        condition=condition,
+        severity=severity,
+        score=score,
     )
     case_data = {**base_data, "case_id": str(case.id), "fmc": fmc.name}
+
+    # Format FMC notification with disease if specified
+    if disease:
+        fmc_title_base = f"{severity_label} {condition_label} ({disease})"
+        fmc_body_base = f"{severity_label} {condition_label} ({disease}) risk ({score}/100)"
+    else:
+        fmc_title_base = f"{severity_label} {condition_label}"
+        fmc_body_base = f"{severity_label} {condition_label} risk ({score}/100)"
 
     # ── Step 4: Notify FMC admin ──────────────────────────────────────────────
     if fmc.admin_user:
@@ -116,15 +151,17 @@ def notify_center_of_critical_risk(
             recipient=fmc.admin_user,
             notification_type=Notification.NotificationType.RISK_UPDATE,
             title=(
-                f"CRITICAL escalation: {severity_label} {condition_label}"
+                f"CRITICAL escalation: {fmc_title_base}"
                 if is_very_severe
-                else f"Escalation: {severity_label} {condition_label}"
+                else f"Escalation: {fmc_title_base}"
             ),
             body=(
-                f"A patient (via {hcc.name}) has reached {severity_label} "
-                f"{condition_label} risk ({score}/100). "
-                + ("Immediate intervention required." if is_very_severe
-                   else "Please assign a clinician.")
+                f"A patient (via {hcc.name}) has reached {fmc_body_base}. "
+                + (
+                    "Immediate intervention required."
+                    if is_very_severe
+                    else "Please assign a clinician."
+                )
             ),
             priority=Notification.Priority.HIGH,
             data={**case_data, "critical": is_very_severe},
@@ -137,11 +174,8 @@ def notify_center_of_critical_risk(
             NotificationService=NotificationService,
             recipient=staff_profile.user,
             notification_type=Notification.NotificationType.RISK_UPDATE,
-            title=f"New case: {severity_label} {condition_label}",
-            body=(
-                f"Patient from {hcc.name} has {severity_label} {condition_label} "
-                f"risk ({score}/100). Please assign a clinician."
-            ),
+            title=f"New case: {fmc_title_base}",
+            body=(f"Patient from {hcc.name} has {fmc_body_base}. Please assign a clinician."),
             priority=Notification.Priority.HIGH,
             data=case_data,
             log_label=f"FMC staff {staff_profile.user.email}",
@@ -149,15 +183,26 @@ def notify_center_of_critical_risk(
 
     # ── Step 6: Notify assigned clinician if Very Severe ─────────────────────
     if is_very_severe and case.clinician:
+        clinician_title = (
+            f"CRITICAL: Your patient reached {fmc_title_base}"
+            if disease
+            else f"CRITICAL: Your patient reached {severity_label} {condition_label}"
+        )
+        clinician_body = (
+            f"{patient.full_name}'s {fmc_body_base} escalated to "
+            f"{severity_label} ({score}/100). Immediate review required."
+            if disease
+            else (
+                f"{patient.full_name}'s {condition_label} risk escalated to "
+                f"{severity_label} ({score}/100). Immediate review required."
+            )
+        )
         _send(
             NotificationService=NotificationService,
             recipient=case.clinician.user,
             notification_type=Notification.NotificationType.RISK_UPDATE,
-            title=f"CRITICAL: Your patient reached {severity_label} {condition_label}",
-            body=(
-                f"{patient.full_name}'s {condition_label} risk escalated to "
-                f"{severity_label} ({score}/100). Immediate review required."
-            ),
+            title=clinician_title,
+            body=clinician_body,
             priority=Notification.Priority.HIGH,
             data={**case_data, "critical": True},
             log_label=f"clinician {case.clinician.user.email}",
@@ -166,8 +211,13 @@ def notify_center_of_critical_risk(
 
 # ── PHC record helpers ────────────────────────────────────────────────────────
 
+
 def _get_or_create_phc_record(
-    patient, hcc, condition: str, severity: str, score: int,
+    patient,
+    hcc,
+    condition: str,
+    severity: str,
+    score: int,
 ) -> PHCPatientRecord:
     """
     Finds or creates a PHCPatientRecord for this patient + condition at this PHC.
@@ -181,21 +231,25 @@ def _get_or_create_phc_record(
     """
     case_condition = _CONDITION_MAP.get(condition, condition)
 
-    existing = PHCPatientRecord.objects.filter(
-        patient=patient,
-        condition=case_condition,
-        status__in=[
-            PHCPatientRecord.RecordStatus.NEW,
-            PHCPatientRecord.RecordStatus.UNDER_REVIEW,
-            PHCPatientRecord.RecordStatus.ACTION_TAKEN,
-        ],
-    ).select_related("hcc").first()
+    existing = (
+        PHCPatientRecord.objects.filter(
+            patient=patient,
+            condition=case_condition,
+            status__in=[
+                PHCPatientRecord.RecordStatus.NEW,
+                PHCPatientRecord.RecordStatus.UNDER_REVIEW,
+                PHCPatientRecord.RecordStatus.ACTION_TAKEN,
+            ],
+        )
+        .select_related("hcc")
+        .first()
+    )
 
     if existing:
         if existing.hcc_id == hcc.id:
             # Same PHC — update score and severity
             existing.latest_score = score
-            existing.severity     = severity
+            existing.severity = severity
             existing.save(update_fields=["latest_score", "severity"])
             return existing
         else:
@@ -205,7 +259,9 @@ def _get_or_create_phc_record(
             logger.info(
                 "Closed stale PHCPatientRecord at old PHC '%s' for patient %s. "
                 "Creating new record at PHC '%s'.",
-                old_name, patient.email, hcc.name,
+                old_name,
+                patient.email,
+                hcc.name,
             )
 
     # Create new record
@@ -220,15 +276,23 @@ def _get_or_create_phc_record(
     )
     logger.info(
         "PHCPatientRecord created: patient=%s condition=%s severity=%s hcc=%s",
-        patient.email, condition, severity, hcc.name,
+        patient.email,
+        condition,
+        severity,
+        hcc.name,
     )
     return record
 
 
 # ── FMC case helpers ──────────────────────────────────────────────────────────
 
+
 def _get_or_create_case(
-    patient, fhc, condition: str, severity: str, score: int,
+    patient,
+    fhc,
+    condition: str,
+    severity: str,
+    score: int,
 ) -> PatientCase:
     """
     Finds or creates a PatientCase for this patient + condition at this FMC.
@@ -240,24 +304,28 @@ def _get_or_create_case(
     """
     # Reuse condition map from PHCPatientRecord
     case_condition_map = {
-        "pcos":           PatientCase.Condition.PCOS,
-        "maternal":       PatientCase.Condition.MATERNAL,
+        "pcos": PatientCase.Condition.PCOS,
+        "maternal": PatientCase.Condition.MATERNAL,
         "cardiovascular": PatientCase.Condition.CARDIOVASCULAR,
     }
     case_condition = case_condition_map.get(condition, condition)
 
-    existing = PatientCase.objects.filter(
-        patient=patient,
-        condition=case_condition,
-        status__in=[
-            PatientCase.CaseStatus.OPEN,
-            PatientCase.CaseStatus.ASSIGNED,
-            PatientCase.CaseStatus.UNDER_TREATMENT,
-        ],
-    ).select_related("fhc", "clinician").first()
+    existing = (
+        PatientCase.objects.filter(
+            patient=patient,
+            condition=case_condition,
+            status__in=[
+                PatientCase.CaseStatus.OPEN,
+                PatientCase.CaseStatus.ASSIGNED,
+                PatientCase.CaseStatus.UNDER_TREATMENT,
+            ],
+        )
+        .select_related("fhc", "clinician")
+        .first()
+    )
 
     if existing:
-        new_fhc_id  = fhc.id if fhc else None
+        new_fhc_id = fhc.id if fhc else None
         fhc_changed = existing.fhc_id != new_fhc_id
 
         if fhc_changed:
@@ -267,7 +335,9 @@ def _get_or_create_case(
                 logger.info(
                     "Closed stale OPEN PatientCase at old FMC '%s' for patient %s. "
                     "Creating new case at FMC '%s'.",
-                    old_name, patient.email, fhc.name if fhc else "none",
+                    old_name,
+                    patient.email,
+                    fhc.name if fhc else "none",
                 )
                 # Fall through to create new
             else:
@@ -275,7 +345,9 @@ def _get_or_create_case(
                 logger.info(
                     "Patient %s changed PHC but case %s is %s at FMC '%s'. "
                     "Keeping existing case until discharged.",
-                    patient.email, existing.id, existing.status,
+                    patient.email,
+                    existing.id,
+                    existing.status,
                     existing.fhc.name if existing.fhc else "none",
                 )
                 return existing
@@ -299,12 +371,16 @@ def _get_or_create_case(
     )
     logger.info(
         "PatientCase created: patient=%s condition=%s severity=%s fhc=%s",
-        patient.email, condition, severity, fhc.name if fhc else "none",
+        patient.email,
+        condition,
+        severity,
+        fhc.name if fhc else "none",
     )
     return case
 
 
 # ── Shared helpers ────────────────────────────────────────────────────────────
+
 
 def _get_patient_phc(patient):
     try:
@@ -345,8 +421,15 @@ def _remind_patient_to_set_phc(patient, NotificationService, Notification):
 
 
 def _notify_phc(
-    hcc, patient, condition_label, severity_label,
-    score, base_data, NotificationService, Notification,
+    hcc,
+    patient,
+    condition_label,
+    severity_label,
+    score,
+    base_data,
+    NotificationService,
+    Notification,
+    disease=None,
 ):
     """Notifies PHC admin and all active PHC staff for Mild/Moderate events."""
     if not hcc.notify_on_severe:
@@ -355,19 +438,50 @@ def _notify_phc(
 
     phc_data = {**base_data, "center": hcc.name, "center_type": "phc"}
 
+    # Format title with disease if specified
+    if disease:
+        title = f"Patient alert: {severity_label} {condition_label} ({disease})"
+        body = (
+            f"Registered patient {patient.full_name} has {severity_label} "
+            f"{condition_label} ({disease}) risk ({score}/100). Review recommended."
+        )
+        staff_body = (
+            f"{patient.full_name} has {severity_label} {condition_label} "
+            f"({disease}) risk ({score}/100). Consider scheduling a review."
+        )
+    else:
+        title = f"Patient alert: {severity_label} {condition_label}"
+        body = (
+            f"Registered patient {patient.full_name} has {severity_label} "
+            f"{condition_label} risk ({score}/100). Review recommended."
+        )
+        staff_body = (
+            f"{patient.full_name} has {severity_label} {condition_label} "
+            f"risk ({score}/100). Consider scheduling a review."
+        )
+
     if hcc.admin_user:
         _send(
             NotificationService=NotificationService,
             recipient=hcc.admin_user,
             notification_type=Notification.NotificationType.RISK_UPDATE,
-            title=f"Patient alert: {severity_label} {condition_label}",
-            body=(
-                f"Registered patient {patient.full_name} has {severity_label} "
-                f"{condition_label} risk ({score}/100). Review recommended."
-            ),
+            title=title,
+            body=body,
             priority=Notification.Priority.MEDIUM,
             data=phc_data,
             log_label=f"PHC admin {hcc.admin_user.email}",
+        )
+
+    for staff_profile in hcc.get_active_staff():
+        _send(
+            NotificationService=NotificationService,
+            recipient=staff_profile.user,
+            notification_type=Notification.NotificationType.RISK_UPDATE,
+            title=title,
+            body=staff_body,
+            priority=Notification.Priority.MEDIUM,
+            data=phc_data,
+            log_label=f"PHC staff {staff_profile.user.email}",
         )
 
     for staff_profile in hcc.get_active_staff():
@@ -387,14 +501,23 @@ def _notify_phc(
 
 
 def _send(
-    NotificationService, recipient, notification_type,
-    title, body, priority, data, log_label,
+    NotificationService,
+    recipient,
+    notification_type,
+    title,
+    body,
+    priority,
+    data,
+    log_label,
 ):
     try:
         NotificationService.send(
             recipient=recipient,
             notification_type=notification_type,
-            title=title, body=body, priority=priority, data=data,
+            title=title,
+            body=body,
+            priority=priority,
+            data=data,
         )
         logger.info("Notification sent to %s", log_label)
     except Exception as e:

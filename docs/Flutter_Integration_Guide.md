@@ -1,7 +1,7 @@
 # Flutter Mobile App Integration Guide
 ## AI-MSHM PCOS Risk Assessment System
 
-**Version**: 1.0  
+**Version**: 1.2  
 **Last Updated**: March 28, 2026  
 **For**: Flutter Mobile Developer
 
@@ -35,6 +35,10 @@ This guide documents all API changes made to the AI-MSHM system and how to imple
 3. **Per-Model Escalation** - Healthcare providers notified at model level
 4. **Clinical Rules Engine** - Rotterdam criteria and metabolic clustering boosts
 5. **rPPG Re-capture** - Users can capture HRV anytime from dashboard
+6. **Disease-Specific Notifications** - Notifications show specific disease names (e.g., "PCOS Risk (Infertility)")
+7. **Mark All as Read** - Batch notification management
+8. **Notification Click Routing** - Tap notification to view patient detail page
+9. **PWA Support** - Installable app with manifest
 
 ---
 
@@ -68,6 +72,52 @@ Map<String, String> headers = {
   'Authorization': 'Bearer $accessToken',
   'Content-Type': 'application/json',
 };
+```
+
+---
+
+## PWA Support
+
+For web deployment, include a manifest.webmanifest:
+
+### manifest.webmanifest
+```json
+{
+  "name": "PCOS Pathfinder",
+  "short_name": "PCOS",
+  "description": "PCOS Health Assessment & Risk Tracking",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#6366f1",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
+```
+
+### Register Service Worker:
+```javascript
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js')
+      .then(registration => {
+        console.log('SW registered:', registration);
+      })
+      .catch(error => {
+        console.log('SW registration failed:', error);
+      });
+  });
+}
 ```
 
 ---
@@ -523,6 +573,403 @@ class _RppgCaptureScreenState extends State<_RppgCaptureScreen> {
 
 ---
 
+## Dashboard HRV Re-capture
+
+Users can re-capture HRV from the dashboard anytime.
+
+### Dashboard Route
+```
+/rppg-capture
+```
+
+### Flutter Implementation - Dashboard Button:
+```dart
+class DashboardScreen extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Column(
+        children: [
+          // Quick action buttons
+          ElevatedButton.icon(
+            onPressed: () => Navigator.pushNamed(context, '/rppg-capture'),
+            icon: Icon(Icons.favorite),
+            label: Text('Measure HRV'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+```
+
+### Standalone rPPG Capture Screen:
+```dart
+class RppgCaptureScreen extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text('HRV Capture')),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.favorite, size: 80, color: Colors.red),
+            SizedBox(height: 24),
+            Text('Place your finger on camera'),
+            SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () => _startCapture(context),
+              child: Text('Start Capture'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+  
+  Future<void> _startCapture(BuildContext context) async {
+    // 1. Start camera capture
+    final hrvData = await _captureHRVFromCamera();
+    
+    // 2. Log session
+    await logRppgSession(
+      rmssd: hrvData['rmssd'],
+      meanHeartRate: hrvData['mean_heart_rate'],
+      sessionType: 'dashboard_recapture',
+    );
+    
+    // 3. Get predictions
+    final metabolicCardio = await predictMetabolicCardio();
+    final stressReproductive = await predictStressReproductive();
+    
+    // 4. Combine and escalate
+    final predictions = {
+      ...metabolicCardio['predictions'],
+      ...stressReproductive['predictions'],
+    };
+    await escalateRppg(predictions);
+    
+    // 5. Trigger comprehensive
+    await triggerComprehensivePrediction();
+    
+    // 6. Show results
+    if (context.mounted) {
+      Navigator.pop(context);
+      _showResults(context, hrvData, predictions);
+    }
+  }
+}
+```
+
+---
+
+## Notifications
+
+### Notification Format
+
+Notifications now include specific disease names:
+
+| Notification Type | Example Message |
+|------------------|-----------------|
+| PCOS Risk | "Patient alert: Moderate PCOS (Infertility)" |
+| CVD Risk | "Patient alert: High CVD" |
+| T2D Risk | "Patient alert: Severe T2D" |
+| Metabolic | "Patient alert: Moderate Metabolic" |
+
+### Get Notifications
+```
+GET /notifications/
+```
+
+**Flutter Implementation:**
+```dart
+Future<List<Map<String, dynamic>>> getNotifications() async {
+  final response = await http.get(
+    Uri.parse('$BASE_URL/notifications/'),
+    headers: headers,
+  );
+  
+  final data = json.decode(response.body);
+  return data['results'] ?? data['data'];
+}
+```
+
+**Response:**
+```json
+{
+  "results": [
+    {
+      "id": "uuid",
+      "title": "Patient alert: Moderate PCOS (Infertility)",
+      "body": "Registered patient John Doe has Moderate PCOS (Infertility) risk (55/100). Review recommended.",
+      "notification_type": "risk_update",
+      "priority": "medium",
+      "data": {
+        "patient_id": "patient-uuid",
+        "patient_name": "John Doe",
+        "patient_email": "john@example.com",
+        "condition": "pcos",
+        "severity": "moderate",
+        "score": 55,
+        "disease": "Infertility",
+        "action": "open_patient_risk_report",
+        "record_id": "record-uuid"
+      },
+      "patient_id": "patient-uuid",
+      "is_read": false,
+      "read_at": null,
+      "created_at": "2026-03-28T00:00:00Z"
+    }
+  ],
+  "unread_count": 5
+}
+```
+
+**Notification Data Fields:**
+
+| Field | Description | Example |
+|-------|-------------|---------|
+| `patient_id` | ID of the patient this notification is about | `"uuid-string"` |
+| `patient_name` | Full name of the patient | `"John Doe"` |
+| `patient_email` | Email of the patient | `"john@example.com"` |
+| `condition` | Broad condition category | `"pcos"`, `"cardiovascular"`, `"maternal"` |
+| `severity` | Risk severity level | `"mild"`, `"moderate"`, `"severe"`, `"very_severe"` |
+| `score` | Risk score (0-100) | `55` |
+| `disease` | Specific disease name | `"Infertility"`, `"Endometrial"`, `"CVD"` |
+| `action` | Action hint for UI | `"open_patient_risk_report"` |
+| `record_id` | PHCPatientRecord ID (if applicable) | `"uuid-string"` |
+| `case_id` | PatientCase ID (if severe) | `"uuid-string"` |
+
+### Mark All as Read
+```
+POST /notifications/mark-all-read/
+```
+
+**Flutter Implementation:**
+```dart
+Future<void> markAllNotificationsRead() async {
+  final response = await http.post(
+    Uri.parse('$BASE_URL/notifications/mark-all-read/'),
+    headers: headers,
+  );
+  
+  if (response.statusCode != 200) {
+    throw Exception('Failed to mark notifications as read');
+  }
+}
+```
+
+### Notification Bell Badge
+```dart
+class NotificationBell extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<int>(
+      future: _getUnreadCount(),
+      builder: (context, snapshot) {
+        final count = snapshot.data ?? 0;
+        return Stack(
+          children: [
+            IconButton(
+              icon: Icon(Icons.notifications),
+              onPressed: () => Navigator.pushNamed(context, '/notifications'),
+            ),
+            if (count > 0)
+              Positioned(
+                right: 8,
+                top: 8,
+                child: Container(
+                  padding: EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Colors.red,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Text(
+                    count > 99 ? '99+' : count.toString(),
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+```
+
+### Notification Panel with Mark All:
+```dart
+class NotificationPanel extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Notifications'),
+        actions: [
+          TextButton(
+            onPressed: () => _markAllRead(context),
+            child: Text('Mark All Read'),
+          ),
+        ],
+      ),
+      body: ListView.builder(
+        itemCount: notifications.length,
+        itemBuilder: (context, index) {
+          final notification = notifications[index];
+          return ListTile(
+            leading: Icon(_getIcon(notification['notification_type'])),
+            title: Text(notification['title']),
+            subtitle: Text(notification['body'] ?? notification['message']),
+            trailing: notification['is_read'] 
+                ? null 
+                : Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: Colors.blue,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+            onTap: () => _handleNotificationTap(context, notification),
+          );
+        },
+      ),
+    );
+  }
+}
+```
+
+### Notification Click Handling - Route to Patient Detail
+
+When a notification is clicked, extract the `patient_id` from the notification data and navigate to the patient detail page.
+
+**Routes by User Role:**
+
+| Role | Patient Detail Route |
+|------|---------------------|
+| PHC Staff/Admin | `/phc/patients/:patient_id` |
+| FMC Clinician | `/clinician/patient/:patient_id` |
+| Patient | `/patient/report` (own report) |
+
+**Flutter Implementation:**
+```dart
+class NotificationPanel extends StatefulWidget {
+  final String userRole; // 'phc', 'fmc', 'patient'
+  
+  @override
+  _NotificationPanelState createState() => _NotificationPanelState();
+}
+
+class _NotificationPanelState extends State<NotificationPanel> {
+  List<Map<String, dynamic>> _notifications = [];
+  
+  void _handleNotificationTap(
+    BuildContext context, 
+    Map<String, dynamic> notification,
+  ) async {
+    // Mark notification as read
+    await markNotificationRead(notification['id']);
+    
+    // Extract patient_id from notification data
+    final data = notification['data'] ?? {};
+    final patientId = data['patient_id'] ?? notification['patient_id'];
+    
+    if (patientId == null) {
+      // No patient ID - show generic notification details
+      _showNotificationDetails(context, notification);
+      return;
+    }
+    
+    // Route based on user role
+    switch (widget.userRole) {
+      case 'phc':
+        Navigator.pushNamed(
+          context, 
+          '/phc/patients/$patientId',
+        );
+        break;
+      case 'fmc':
+        Navigator.pushNamed(
+          context, 
+          '/clinician/patient/$patientId',
+        );
+        break;
+      case 'patient':
+        Navigator.pushNamed(context, '/patient/report');
+        break;
+      default:
+        _showNotificationDetails(context, notification);
+    }
+  }
+  
+  void _showNotificationDetails(
+    BuildContext context, 
+    Map<String, dynamic> notification,
+  ) {
+    final data = notification['data'] ?? {};
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => Container(
+        padding: EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              notification['title'] ?? 'Notification',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            SizedBox(height: 16),
+            Text(notification['body'] ?? ''),
+            SizedBox(height: 16),
+            if (data['severity'] != null)
+              Chip(label: Text(data['severity'].toString().toUpperCase())),
+            if (data['score'] != null)
+              Text('Risk Score: ${data['score']}/100'),
+            if (data['disease'] != null)
+              Text('Disease: ${data['disease']}'),
+            SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text('Close'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+```
+
+### Mark Single Notification as Read
+```
+PATCH /notifications/<id>/read/
+```
+
+**Flutter Implementation:**
+```dart
+Future<void> markNotificationRead(String notificationId) async {
+  final response = await http.patch(
+    Uri.parse('$BASE_URL/notifications/$notificationId/read/'),
+    headers: headers,
+  );
+  
+  if (response.statusCode != 200) {
+    throw Exception('Failed to mark notification as read');
+  }
+}
+```
+
+---
+
 ## Mood Tracking
 
 ### Get Mood Predictions
@@ -741,6 +1188,175 @@ POST /predictions/ensemble-config/reset/
 Authorization: Bearer <admin_token>
 ```
 
+### PHC Staff Creation
+
+PHC admins can create new staff members. The response includes a temporary password.
+
+#### POST - Create Staff
+```
+POST /centers/hcc/staff/
+Authorization: Bearer <admin_token>
+```
+
+**Flutter Implementation:**
+```dart
+class StaffCreationDialog extends StatefulWidget {
+  @override
+  _StaffCreationDialogState createState() => _StaffCreationDialogState();
+}
+
+class _StaffCreationDialogState extends State<StaffCreationDialog> {
+  String? tempPassword;
+  bool isLoading = false;
+  
+  Future<void> _createStaff(Map<String, dynamic> staffData) async {
+    setState(() => isLoading = true);
+    
+    try {
+      final response = await http.post(
+        Uri.parse('$BASE_URL/centers/hcc/staff/'),
+        headers: adminHeaders,
+        body: json.encode(staffData),
+      );
+      
+      if (response.statusCode == 201) {
+        final data = json.decode(response.body);
+        // Show temp password dialog
+        if (mounted) {
+          _showTempPasswordDialog(data['temp_password']);
+        }
+      }
+    } finally {
+      if (mounted) setState(() => isLoading = false);
+    }
+  }
+  
+  void _showTempPasswordDialog(String password) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Staff Created'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Temporary password (valid for 24 hours):'),
+            SizedBox(height: 16),
+            Container(
+              padding: EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.grey[200],
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: SelectableText(
+                password,
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            SizedBox(height: 16),
+            Text(
+              'Please share this password with the staff member securely.',
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Done'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+```
+
+### Ensemble Weight Configuration UI (PHC)
+
+```dart
+class EnsembleWeightConfigPanel extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<List<EnsembleWeightConfig>>(
+      future: getEnsembleWeights(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return CircularProgressIndicator();
+        
+        return ListView.builder(
+          itemCount: snapshot.data!.length,
+          itemBuilder: (context, index) {
+            final config = snapshot.data![index];
+            return Card(
+              child: ExpansionTile(
+                title: Text(config.diseaseName),
+                children: [
+                  Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Column(
+                      children: [
+                        _WeightSlider(
+                          label: 'Symptom',
+                          value: config.symptomWeight,
+                          onChanged: (v) => _updateWeight(config.diseaseName, 'symptom', v),
+                        ),
+                        _WeightSlider(
+                          label: 'Menstrual',
+                          value: config.menstrualWeight,
+                          onChanged: (v) => _updateWeight(config.diseaseName, 'menstrual', v),
+                        ),
+                        _WeightSlider(
+                          label: 'rPPG',
+                          value: config.rppgWeight,
+                          onChanged: (v) => _updateWeight(config.diseaseName, 'rppg', v),
+                        ),
+                        _WeightSlider(
+                          label: 'Mood',
+                          value: config.moodWeight,
+                          onChanged: (v) => _updateWeight(config.diseaseName, 'mood', v),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _WeightSlider extends StatelessWidget {
+  final String label;
+  final double value;
+  final Function(double) onChanged;
+  
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        SizedBox(width: 100, child: Text(label)),
+        Expanded(
+          child: Slider(
+            value: value,
+            min: 0,
+            max: 1,
+            divisions: 20,
+            onChanged: onChanged,
+          ),
+        ),
+        SizedBox(width: 50, child: Text('${(value * 100).toInt()}%')),
+      ],
+    );
+  }
+}
+```
+
 ---
 
 ## Data Models
@@ -900,6 +1516,8 @@ try {
 - [ ] Menstrual prediction display
 - [ ] Data completeness indicator
 - [ ] Clinical rules display
+- [ ] Dashboard HRV re-capture button
+- [ ] Standalone rPPG capture screen
 
 ### Nice to Have:
 
@@ -907,6 +1525,8 @@ try {
 - [ ] Push notifications for escalations
 - [ ] Offline mode with sync
 - [ ] Historical trend charts
+- [ ] PWA manifest and service worker
+- [ ] Temp password dialog for staff creation
 
 ---
 
@@ -927,6 +1547,11 @@ try {
 | `/predictions/ensemble-config/` | GET | Admin | Get weight configs |
 | `/predictions/ensemble-config/<disease>/` | PUT | Admin | Update weight |
 | `/predictions/ensemble-config/reset/` | POST | Admin | Reset weights |
+| `/notifications/` | GET | Both | Get notifications |
+| `/notifications/unread-count/` | GET | Both | Get unread count |
+| `/notifications/<id>/read/` | PATCH | Both | Mark single as read |
+| `/notifications/mark-all-read/` | PATCH | Both | Mark all as read |
+| `/centers/hcc/staff/` | POST | Admin | Create staff member |
 
 ---
 
@@ -938,5 +1563,5 @@ For questions or issues, contact:
 
 ---
 
-*Document Version: 1.0*
+*Document Version: 1.2*
 *Last Updated: March 28, 2026*
