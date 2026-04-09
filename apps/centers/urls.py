@@ -59,6 +59,9 @@ from .views import (
     PHCEscalateView,
     PHCWalkInView,
     PHCWalkInComprehensiveView,
+    PHCSendAdviceView,
+    PHCAdviceHistoryView,
+    PHCAnalyticsView,
     # PHC Admin
     PHCProfileView,
     PHCStaffListView,
@@ -68,6 +71,12 @@ from .views import (
     FMCCaseDetailView,
     FMCAssignClinicianView,
     FMCDischargeCaseView,
+    FMCAnalyticsView,
+    FMCAlertsView,
+    FMCRequestDiagnosticsView,
+    FMCDiagnosticsStatusView,
+    FMCDischargeView,
+    FMC_autoAssignView,
     # FMC Admin
     FMCProfileView,
     FMCStaffListView,
@@ -105,6 +114,10 @@ urlpatterns = [
         PHCWalkInComprehensiveView.as_view(),
         name="phc-walk-in-comprehensive",
     ),
+    # PHC Advice & Analytics
+    path("phc/advice/", PHCSendAdviceView.as_view(), name="phc-advice"),
+    path("phc/advice/history/", PHCAdviceHistoryView.as_view(), name="phc-advice-history"),
+    path("phc/analytics/", PHCAnalyticsView.as_view(), name="phc-analytics"),
     # ── PHC Admin ─────────────────────────────────────────────────────────────
     path("phc/profile/", PHCProfileView.as_view(), name="phc-profile"),
     path("phc/staff/", PHCStaffListView.as_view(), name="phc-staff-list"),
@@ -116,6 +129,21 @@ urlpatterns = [
     path(
         "fmc/cases/<uuid:pk>/discharge/", FMCDischargeCaseView.as_view(), name="fmc-case-discharge"
     ),
+    # FMC Analytics & Alerts
+    path("fmc/analytics/", FMCAnalyticsView.as_view(), name="fmc-analytics"),
+    path("fmc/alerts/", FMCAlertsView.as_view(), name="fmc-alerts"),
+    path(
+        "fmc/request-diagnostics/",
+        FMCRequestDiagnosticsView.as_view(),
+        name="fmc-request-diagnostics",
+    ),
+    path(
+        "fmc/diagnostics-status/<uuid:patient_id>/",
+        FMCDiagnosticsStatusView.as_view(),
+        name="fmc-diagnostics-status",
+    ),
+    path("fmc/discharge/<uuid:patient_id>/", FMCDischargeView.as_view(), name="fmc-discharge"),
+    path("fmc/auto-assign/", FMC_autoAssignView.as_view(), name="fmc-auto-assign"),
     # ── FMC Admin ─────────────────────────────────────────────────────────────
     path("fmc/profile/", FMCProfileView.as_view(), name="fmc-profile"),
     path("fmc/staff/", FMCStaffListView.as_view(), name="fmc-staff-list"),

@@ -539,6 +539,125 @@ class PHCWalkInComprehensiveSerializer(serializers.Serializer):
         return value
 
 
+# ── PHC Advice ─────────────────────────────────────────────────────────────────
+
+
+class PHCAdviceSerializer(serializers.Serializer):
+    """Request serializer for sending lifestyle advice to a patient."""
+
+    condition = serializers.ChoiceField(choices=PHCPatientRecord.Condition.choices)
+    message = serializers.CharField(max_length=2000)
+    followup_date = serializers.DateField(required=False, allow_null=True)
+
+
+class PHCAdviceResponseSerializer(serializers.Serializer):
+    """Response serializer for advice sent to a patient."""
+
+    id = serializers.UUIDField()
+    queue_record_id = serializers.UUIDField()
+    condition = serializers.CharField()
+    message = serializers.CharField()
+    followup_date = serializers.DateField(allow_null=True)
+    sent_at = serializers.DateTimeField()
+    sent_by_name = serializers.CharField()
+
+
+class PHCAdviceHistorySerializer(serializers.Serializer):
+    """Serializer for advice history."""
+
+    results = PHCAdviceResponseSerializer(many=True)
+
+
+# ── PHC Analytics ───────────────────────────────────────────────────────────────
+
+
+class PHCAnalyticsSerializer(serializers.Serializer):
+    """Serializer for PHC analytics data."""
+
+    total_patients = serializers.IntegerField()
+    active_minor_risk = serializers.IntegerField()
+    escalated_this_period = serializers.IntegerField()
+    avg_time_to_action_days = serializers.FloatField()
+    risk_distribution = serializers.DictField()
+    condition_breakdown = serializers.DictField()
+    escalations_timeline = serializers.ListField()
+    staff_actions = serializers.DictField()
+
+
+# ── FMC Analytics ───────────────────────────────────────────────────────────────
+
+
+class FMCAnalyticsSerializer(serializers.Serializer):
+    """Serializer for FMC population analytics."""
+
+    total_active_cases = serializers.IntegerField()
+    critical_unassigned = serializers.IntegerField()
+    critical_assigned = serializers.IntegerField()
+    high_unassigned = serializers.IntegerField()
+    high_assigned = serializers.IntegerField()
+    avg_days_to_assignment = serializers.FloatField()
+    cases_resolved_this_month = serializers.IntegerField()
+    severity_distribution = serializers.DictField()
+    condition_prevalence = serializers.DictField()
+    referral_sources = serializers.ListField()
+    time_to_assignment_histogram = serializers.ListField()
+    outcomes_tracker = serializers.DictField()
+    clinician_load = serializers.ListField()
+
+
+class FMCAlertSerializer(serializers.Serializer):
+    """Serializer for FMC alerts."""
+
+    id = serializers.UUIDField()
+    alert_type = serializers.CharField()
+    severity = serializers.CharField()
+    patient_id = serializers.UUIDField()
+    patient_name = serializers.CharField()
+    message = serializers.CharField()
+    timestamp = serializers.DateTimeField()
+    is_read = serializers.BooleanField()
+    action_required = serializers.BooleanField()
+
+
+class FMCAlertListSerializer(serializers.Serializer):
+    """Serializer for alert list response."""
+
+    pinned_alerts = FMCAlertSerializer(many=True)
+    regular_alerts = FMCAlertSerializer(many=True)
+
+
+class FMCDiagnosticsRequestSerializer(serializers.Serializer):
+    """Serializer for diagnostics request."""
+
+    patient_id = serializers.UUIDField()
+    tests = serializers.ListField(child=serializers.CharField())
+    urgency = serializers.ChoiceField(choices=["routine", "urgent"])
+    custom_note = serializers.CharField(required=False, allow_blank=True)
+
+
+class FMCDischargeSerializer(serializers.Serializer):
+    """Serializer for case discharge."""
+
+    condition_confirmed = serializers.ChoiceField(
+        choices=[
+            "pcos_confirmed",
+            "hormonal_imbalance",
+            "metabolic_syndrome",
+            "multiple",
+            "none_confirmed",
+        ]
+    )
+    diagnostic_basis = serializers.ChoiceField(
+        choices=["clinical_criteria", "lab_results", "imaging", "combined"]
+    )
+    treatment_summary = serializers.CharField(max_length=5000)
+    follow_up_plan = serializers.ChoiceField(
+        choices=["discharged_to_phc", "self_monitor", "specialist_followup", "tertiary_referral"]
+    )
+    closing_score = serializers.FloatField()
+    discharge_letter = serializers.CharField(max_length=10000)
+
+
 # ── Change Request ────────────────────────────────────────────────────────────
 
 

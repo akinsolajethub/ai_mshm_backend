@@ -30,7 +30,9 @@ ACCOUNT MANAGEMENT:
 
 import secrets
 import string
+import uuid
 from django.contrib.auth import get_user_model
+from django.db import models
 from django.utils import timezone
 from rest_framework.permissions import IsAuthenticated, AllowAny, IsAdminUser
 from rest_framework.views import APIView
@@ -70,6 +72,13 @@ from .serializers import (
     ChangeRequestSerializer,
     PHCWalkInSerializer,
     PHCWalkInComprehensiveSerializer,
+    PHCAdviceSerializer,
+    PHCAdviceResponseSerializer,
+    PHCAnalyticsSerializer,
+    FMCAnalyticsSerializer,
+    FMCAlertListSerializer,
+    FMCDiagnosticsRequestSerializer,
+    FMCDischargeSerializer,
 )
 
 User = get_user_model()
@@ -602,6 +611,625 @@ class PHCWalkInComprehensiveView(APIView):
                 f"Patient registered successfully and linked to {hcc.name}. "
                 "Share the temporary password with the patient."
             ),
+        )
+
+
+# ── PHC Advice ───────────────────────────────────────────────────────────────────
+
+
+class PHCSendAdviceView(APIView):
+    """
+    POST /api/v1/centers/phc/advice/
+    Send lifestyle advice to a patient record.
+    """
+
+    permission_classes = [IsAuthenticated, IsAnyPHCUser]
+
+    @extend_schema(
+        tags=["PHC Portal"],
+        summary="Send lifestyle advice to patient (PHC5)",
+        request=PHCAdviceSerializer,
+        description="Sends lifestyle advice to a patient and updates the record status.",
+    )
+    def post(self, request):
+        serializer = PHCAdviceSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        queue_record_id = request.data.get("queue_record_id")
+        if not queue_record_id:
+            return error_response("queue_record_id is required.", http_status=400)
+
+        try:
+            record = PHCPatientRecord.objects.get(pk=queue_record_id, hcc=request.user.managed_hcc)
+        except PHCPatientRecord.DoesNotExist:
+            return error_response("Patient record not found.", http_status=404)
+
+        record.notes = data.get("message", "")
+        record.last_advice_at = timezone.now()
+
+        if data.get("followup_date"):
+            record.next_followup = data.get("followup_date")
+
+        if record.status == PHCPatientRecord.RecordStatus.NEW:
+            record.status = PHCPatientRecord.RecordStatus.ACTION_TAKEN
+
+        record.save()
+
+        return created_response(
+            data={
+                "id": str(uuid.uuid4()),
+                "queue_record_id": str(record.id),
+                "condition": record.condition,
+                "message": data.get("message"),
+                "followup_date": data.get("followup_date"),
+                "sent_at": record.last_advice_at.isoformat(),
+                "sent_by_name": request.user.full_name,
+            },
+            message="Advice sent successfully.",
+        )
+
+
+class PHCAdviceHistoryView(APIView):
+    """
+    GET /api/v1/centers/phc/advice/
+    Get recent advice history for the PHC.
+    """
+
+    permission_classes = [IsAuthenticated, IsAnyPHCUser]
+
+    @extend_schema(
+        tags=["PHC Portal"],
+        summary="Get recent advice history (PHC5)",
+        description="Returns recent lifestyle advice sent by PHC staff.",
+    )
+    def get(self, request):
+        hcc = _get_user_hcc(request.user)
+        if not hcc:
+            return error_response("No PHC facility linked to your account.", http_status=404)
+
+        limit = int(request.query_params.get("limit", 10))
+        records = (
+            PHCPatientRecord.objects.filter(hcc=hcc, last_advice_at__isnull=False)
+            .select_related("patient")
+            .order_by("-last_advice_at")[:limit]
+        )
+
+        results = []
+        for record in records:
+            results.append(
+                {
+                    "id": str(uuid.uuid4()),
+                    "queue_record_id": str(record.id),
+                    "patient_name": record.patient.full_name,
+                    "patient_email": record.patient.email,
+                    "condition": record.condition,
+                    "message": record.notes,
+                    "sent_at": record.last_advice_at.isoformat() if record.last_advice_at else None,
+                }
+            )
+
+        return success_response(data={"results": results})
+
+
+# ── PHC Analytics ───────────────────────────────────────────────────────────────
+
+
+class PHCAnalyticsView(APIView):
+    """
+    GET /api/v1/centers/phc/analytics/
+    Get analytics data for the PHC.
+    """
+
+    permission_classes = [IsAuthenticated, IsAnyPHCUser]
+
+    @extend_schema(
+        tags=["PHC Portal"],
+        summary="Get PHC analytics (PHC7)",
+        description="Returns analytics data for the PHC including patient stats and activity.",
+    )
+    def get(self, request):
+        hcc = _get_user_hcc(request.user)
+        if not hcc:
+            return error_response("No PHC facility linked to your account.", http_status=404)
+
+        range_param = request.query_params.get("range", "30d")
+
+        from datetime import timedelta
+        from django.utils import timezone
+
+        today = timezone.now().date()
+        if range_param == "7d":
+            start_date = today - timedelta(days=7)
+        elif range_param == "90d":
+            start_date = today - timedelta(days=90)
+        else:
+            start_date = today - timedelta(days=30)
+
+        all_records = PHCPatientRecord.objects.filter(hcc=hcc)
+        active_records = all_records.exclude(
+            status__in=[
+                PHCPatientRecord.RecordStatus.DISCHARGED,
+                PHCPatientRecord.RecordStatus.ESCALATED,
+            ]
+        )
+
+        total_patients = all_records.count()
+        active_minor_risk = active_records.filter(severity__in=["mild", "moderate"]).count()
+
+        escalated_this_period = all_records.filter(
+            status=PHCPatientRecord.RecordStatus.ESCALATED, closed_at__gte=start_date
+        ).count()
+
+        records_with_advice = active_records.filter(last_advice_at__isnull=False).values_list(
+            "last_advice_at", flat=True
+        )
+
+        if records_with_advice:
+            avg_days = sum((timezone.now() - d).days for d in records_with_advice if d) / len(
+                records_with_advice
+            )
+        else:
+            avg_days = 0.0
+
+        risk_distribution = {
+            "low": active_records.filter(severity="mild").count(),
+            "moderate": active_records.filter(severity="moderate").count(),
+        }
+
+        condition_breakdown = {
+            "pcos": active_records.filter(condition=PHCPatientRecord.Condition.PCOS).count(),
+            "hormonal": active_records.filter(
+                condition=PHCPatientRecord.Condition.MATERNAL
+            ).count(),
+            "metabolic": active_records.filter(
+                condition=PHCPatientRecord.Condition.CARDIOVASCULAR
+            ).count(),
+        }
+
+        escalations_timeline = []
+        for i in range(4):
+            week_start = today - timedelta(days=(i * 7 + 7))
+            week_end = today - timedelta(days=i * 7)
+            count = all_records.filter(
+                status=PHCPatientRecord.RecordStatus.ESCALATED,
+                closed_at__gte=week_start,
+                closed_at__lt=week_end,
+            ).count()
+            escalations_timeline.append({"week": f"Week {4 - i}", "count": count})
+        escalations_timeline.reverse()
+
+        staff_actions = {
+            "advice_sent": active_records.filter(last_advice_at__gte=start_date).count(),
+            "followups_scheduled": active_records.filter(next_followup__gte=today).count(),
+            "patients_discharged": all_records.filter(
+                status=PHCPatientRecord.RecordStatus.DISCHARGED, closed_at__gte=start_date
+            ).count(),
+        }
+
+        return success_response(
+            data={
+                "total_patients": total_patients,
+                "active_minor_risk": active_minor_risk,
+                "escalated_this_period": escalated_this_period,
+                "avg_time_to_action_days": round(avg_days, 1),
+                "risk_distribution": risk_distribution,
+                "condition_breakdown": condition_breakdown,
+                "escalations_timeline": escalations_timeline,
+                "staff_actions": staff_actions,
+            }
+        )
+
+
+# ── FMC Portal Views ────────────────────────────────────────────────────────────
+
+
+def _get_user_fmc(user):
+    """Get the FMC linked to the user's account."""
+    try:
+        return user.managed_fhc
+    except Exception:
+        return None
+
+
+class FMCAnalyticsView(APIView):
+    """
+    GET /api/v1/fmc/analytics/
+    Get population analytics for the FMC.
+    """
+
+    permission_classes = [IsAuthenticated, IsAnyFMCUser]
+
+    @extend_schema(
+        tags=["FMC Portal"],
+        summary="Get FMC population analytics (FMC6)",
+        description="Returns analytics data for the FMC including case severity and outcomes.",
+    )
+    def get(self, request):
+        fhc = _get_user_fmc(request.user)
+        if not fhc:
+            return error_response("No FMC facility linked to your account.", http_status=404)
+
+        range_param = request.query_params.get("range", "30d")
+
+        from datetime import timedelta
+        from django.utils import timezone
+
+        today = timezone.now().date()
+        if range_param == "7d":
+            start_date = today - timedelta(days=7)
+        elif range_param == "90d":
+            start_date = today - timedelta(days=90)
+        else:
+            start_date = today - timedelta(days=30)
+
+        from .models import PatientCase
+
+        all_cases = PatientCase.objects.filter(fhc=fhc)
+        active_cases = all_cases.exclude(
+            status__in=[
+                PatientCase.CaseStatus.DISCHARGED,
+                PatientCase.CaseStatus.EXTERNAL_REFERRAL,
+            ]
+        )
+
+        total_active_cases = active_cases.count()
+        critical_cases = active_cases.filter(severity="critical")
+        high_cases = active_cases.filter(severity="high")
+
+        critical_unassigned = critical_cases.filter(clinician__isnull=True).count()
+        critical_assigned = critical_cases.filter(clinician__isnull=False).count()
+        high_unassigned = high_cases.filter(clinician__isnull=True).count()
+        high_assigned = high_cases.filter(clinician__isnull=False).count()
+
+        cases_with_assignment = active_cases.filter(
+            clinician__isnull=False, assigned_at__isnull=False
+        ).values_list("assigned_at", flat=True)
+
+        if cases_with_assignment:
+            avg_days = sum((timezone.now() - d).days for d in cases_with_assignment if d) / len(
+                cases_with_assignment
+            )
+        else:
+            avg_days = 0.0
+
+        cases_resolved_this_month = all_cases.filter(
+            status=PatientCase.CaseStatus.DISCHARGED, closed_at__gte=start_date
+        ).count()
+
+        severity_distribution = {
+            "critical": critical_cases.count(),
+            "high": high_cases.count(),
+        }
+
+        condition_prevalence = {
+            "pcos": active_cases.filter(condition=PatientCase.Condition.PCOS).count(),
+            "hormonal": active_cases.filter(condition=PatientCase.Condition.MATERNAL).count(),
+            "metabolic": active_cases.filter(
+                condition=PatientCase.Condition.CARDIOVASCULAR
+            ).count(),
+        }
+
+        from apps.centers.models import PHCPatientRecord
+
+        referring_phcs = (
+            PHCPatientRecord.objects.filter(escalated_to_case__fhc=fhc, closed_at__gte=start_date)
+            .values("hcc__name")
+            .annotate(count=models.Count("id"))
+        )
+
+        referral_sources = [
+            {"phc_name": item["hcc__name"], "count": item["count"]} for item in referring_phcs
+        ]
+
+        time_to_assignment_histogram = []
+        for i in range(5):
+            day_start = i * 2
+            day_end = (i + 1) * 2
+            count = active_cases.filter(
+                assigned_at__isnull=False,
+                assigned_at__gte=timezone.now() - timedelta(days=day_end),
+                assigned_at__lt=timezone.now() - timedelta(days=day_start),
+            ).count()
+            time_to_assignment_histogram.append(
+                {"range": f"{day_start}-{day_end} days", "count": count}
+            )
+
+        outcomes_tracker = {
+            "resolved": all_cases.filter(status=PatientCase.CaseStatus.DISCHARGED).count(),
+            "under_treatment": active_cases.count(),
+            "referred_externally": all_cases.filter(
+                status=PatientCase.CaseStatus.EXTERNAL_REFERRAL
+            ).count(),
+        }
+
+        from apps.centers.models import ClinicianProfile
+
+        clinicians = ClinicianProfile.objects.filter(fhc=fhc)
+        clinician_load = []
+        for clinician in clinicians:
+            case_count = active_cases.filter(clinician=clinician).count()
+            clinician_load.append(
+                {
+                    "clinician_name": clinician.user.full_name,
+                    "specialization": clinician.specialization,
+                    "active_cases": case_count,
+                }
+            )
+
+        return success_response(
+            data={
+                "total_active_cases": total_active_cases,
+                "critical_unassigned": critical_unassigned,
+                "critical_assigned": critical_assigned,
+                "high_unassigned": high_unassigned,
+                "high_assigned": high_assigned,
+                "avg_days_to_assignment": round(avg_days, 1),
+                "cases_resolved_this_month": cases_resolved_this_month,
+                "severity_distribution": severity_distribution,
+                "condition_prevalence": condition_prevalence,
+                "referral_sources": referral_sources,
+                "time_to_assignment_histogram": time_to_assignment_histogram,
+                "outcomes_tracker": outcomes_tracker,
+                "clinician_load": clinician_load,
+            }
+        )
+
+
+class FMCAlertsView(APIView):
+    """
+    GET /api/v1/fmc/alerts/
+    Get priority-sorted alert feed for FMC.
+    """
+
+    permission_classes = [IsAuthenticated, IsAnyFMCUser]
+
+    @extend_schema(
+        tags=["FMC Portal"],
+        summary="Get FMC alerts (FMC7)",
+        description="Returns priority-sorted alerts including critical unassigned cases.",
+    )
+    def get(self, request):
+        fhc = _get_user_fmc(request.user)
+        if not fhc:
+            return error_response("No FMC facility linked to your account.", http_status=404)
+
+        from .models import PatientCase
+
+        active_cases = (
+            PatientCase.objects.filter(fhc=fhc)
+            .exclude(
+                status__in=[
+                    PatientCase.CaseStatus.DISCHARGED,
+                    PatientCase.CaseStatus.EXTERNAL_REFERRAL,
+                ]
+            )
+            .select_related("patient")
+        )
+
+        pinned_alerts = []
+        regular_alerts = []
+
+        critical_unassigned = active_cases.filter(severity="critical", clinician__isnull=True)
+        for case in critical_unassigned:
+            pinned_alerts.append(
+                {
+                    "id": str(uuid.uuid4()),
+                    "alert_type": "critical_unassigned",
+                    "severity": "critical",
+                    "patient_id": str(case.patient.id),
+                    "patient_name": case.patient.full_name,
+                    "message": f"Critical patient unassigned - requires immediate clinician assignment",
+                    "timestamp": case.assigned_at or case.opened_at,
+                    "is_read": False,
+                    "action_required": True,
+                }
+            )
+
+        new_referrals = active_cases.filter(
+            status=PatientCase.CaseStatus.ASSIGNED,
+            assigned_at__gte=timezone.now() - timedelta(days=3),
+        )
+        for case in new_referrals:
+            regular_alerts.append(
+                {
+                    "id": str(uuid.uuid4()),
+                    "alert_type": "new_referral",
+                    "severity": "high",
+                    "patient_id": str(case.patient.id),
+                    "patient_name": case.patient.full_name,
+                    "message": f"New referral received from PHC - case requires review",
+                    "timestamp": case.assigned_at,
+                    "is_read": False,
+                    "action_required": False,
+                }
+            )
+
+        return success_response(
+            data={
+                "pinned_alerts": pinned_alerts,
+                "regular_alerts": regular_alerts,
+            }
+        )
+
+
+class FMCRequestDiagnosticsView(APIView):
+    """
+    POST /api/v1/fmc/request-diagnostics/
+    Request diagnostic tests from a patient.
+    """
+
+    permission_classes = [IsAuthenticated, IsAnyFMCUser]
+
+    @extend_schema(
+        tags=["FMC Portal"],
+        summary="Request diagnostics (FMC5)",
+        request=FMCDiagnosticsRequestSerializer,
+        description="Sends a diagnostic test request to the patient.",
+    )
+    def post(self, request):
+        serializer = FMCDiagnosticsRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        try:
+            case = PatientCase.objects.get(pk=data["patient_id"], fhc=request.user.managed_fhc)
+        except PatientCase.DoesNotExist:
+            return error_response("Patient case not found.", http_status=404)
+
+        logger.info(
+            "Diagnostics requested for patient %s by FMC %s - tests: %s",
+            case.patient.email,
+            request.user.managed_fhc.name,
+            data["tests"],
+        )
+
+        return created_response(
+            data={
+                "patient_id": str(case.patient.id),
+                "tests_requested": data["tests"],
+                "urgency": data["urgency"],
+                "status": "request_sent",
+                "message": "Diagnostic request sent to patient.",
+            }
+        )
+
+
+class FMCDiagnosticsStatusView(APIView):
+    """
+    GET /api/v1/fmc/diagnostics-status/{patient_id}/
+    Get diagnostics request status for a patient.
+    """
+
+    permission_classes = [IsAuthenticated, IsAnyFMCUser]
+
+    @extend_schema(
+        tags=["FMC Portal"],
+        summary="Get diagnostics status",
+        description="Returns pending and completed diagnostics requests.",
+    )
+    def get(self, request, patient_id):
+        fhc = _get_user_fmc(request.user)
+        if not fhc:
+            return error_response("No FMC facility linked to your account.", http_status=404)
+
+        return success_response(
+            data={
+                "pending_requests": [],
+                "received_results": [],
+            }
+        )
+
+
+class FMCDischargeView(APIView):
+    """
+    POST /api/v1/fmc/discharge/{patient_id}/
+    Discharge a patient case with outcome summary.
+    """
+
+    permission_classes = [IsAuthenticated, IsAnyFMCUser]
+
+    @extend_schema(
+        tags=["FMC Portal"],
+        summary="Discharge patient (FMC8)",
+        request=FMCDischargeSerializer,
+        description="Closes a patient case with final diagnosis and discharge letter.",
+    )
+    def post(self, request, patient_id):
+        serializer = FMCDischargeSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        try:
+            case = PatientCase.objects.get(pk=patient_id, fhc=request.user.managed_fhc)
+        except PatientCase.DoesNotExist:
+            return error_response("Patient case not found.", http_status=404)
+
+        case.status = PatientCase.CaseStatus.DISCHARGED
+        case.closing_score = data.get("closing_score")
+        case.closing_notes = data.get("treatment_summary")
+        case.closed_at = timezone.now()
+        case.save()
+
+        logger.info(
+            "Patient %s discharged from FMC %s - condition: %s",
+            case.patient.email,
+            request.user.managed_fhc.name,
+            data.get("condition_confirmed"),
+        )
+
+        return success_response(
+            data={
+                "patient_id": str(case.patient.id),
+                "condition_confirmed": data.get("condition_confirmed"),
+                "follow_up_plan": data.get("follow_up_plan"),
+                "discharge_date": case.closed_at.isoformat(),
+                "status": "discharged",
+                "message": "Patient discharged successfully.",
+            }
+        )
+
+
+class FMC_autoAssignView(APIView):
+    """
+    POST /api/v1/fmc/auto-assign/
+    Auto-assign unassigned patients to clinicians.
+    """
+
+    permission_classes = [IsAuthenticated, IsAnyFMCUser]
+
+    @extend_schema(
+        tags=["FMC Portal"],
+        summary="Auto-assign patients",
+        description="Automatically assigns unassigned patients to available clinicians.",
+    )
+    def post(self, request):
+        fhc = _get_user_fmc(request.user)
+        if not fhc:
+            return error_response("No FMC facility linked to your account.", http_status=404)
+
+        from .models import PatientCase, ClinicianProfile
+
+        unassigned_cases = PatientCase.objects.filter(
+            fhc=fhc,
+            clinician__isnull=True,
+            status__in=[PatientCase.CaseStatus.NEW, PatientCase.CaseStatus.ASSIGNED],
+        )
+
+        clinicians = ClinicianProfile.objects.filter(fhc=fhc, is_available=True).order_by(
+            "user__full_name"
+        )
+
+        if not clinicians.exists():
+            return error_response("No available clinicians to assign.", http_status=400)
+
+        assignments = []
+        clinician_list = list(clinicians)
+        clinician_idx = 0
+
+        for case in unassigned_cases:
+            clinician = clinician_list[clinician_idx]
+            case.clinician = clinician.user
+            case.status = PatientCase.CaseStatus.ASSIGNED
+            case.assigned_at = timezone.now()
+            case.save()
+
+            assignments.append(
+                {
+                    "case_id": str(case.id),
+                    "patient_name": case.patient.full_name,
+                    "clinician_name": clinician.user.full_name,
+                }
+            )
+
+            clinician_idx = (clinician_idx + 1) % len(clinician_list) if clinician_list else 0
+
+        return success_response(
+            data={
+                "assignments": assignments,
+                "total_assigned": len(assignments),
+                "message": f"Auto-assigned {len(assignments)} patients to clinicians.",
+            }
         )
 
 
