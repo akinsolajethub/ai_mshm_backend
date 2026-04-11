@@ -77,6 +77,10 @@ from .views import (
     FMCDiagnosticsStatusView,
     FMCDischargeView,
     FMC_autoAssignView,
+    FMCConsultationNotesView,
+    FMCConsultationNoteDetailView,
+    FMCTreatmentPlansView,
+    FMCTreatmentPlanDetailView,
     # FMC Admin
     FMCProfileView,
     FMCStaffListView,
@@ -144,6 +148,27 @@ urlpatterns = [
     ),
     path("fmc/discharge/<uuid:patient_id>/", FMCDischargeView.as_view(), name="fmc-discharge"),
     path("fmc/auto-assign/", FMC_autoAssignView.as_view(), name="fmc-auto-assign"),
+    # FMC Consultation Notes & Treatment Plans
+    path(
+        "fmc/cases/<uuid:pk>/consultation-notes/",
+        FMCConsultationNotesView.as_view(),
+        name="fmc-consultation-notes",
+    ),
+    path(
+        "fmc/consultation-notes/<uuid:pk>/",
+        FMCConsultationNoteDetailView.as_view(),
+        name="fmc-consultation-note-detail",
+    ),
+    path(
+        "fmc/cases/<uuid:pk>/treatment-plans/",
+        FMCTreatmentPlansView.as_view(),
+        name="fmc-treatment-plans",
+    ),
+    path(
+        "fmc/treatment-plans/<uuid:pk>/",
+        FMCTreatmentPlanDetailView.as_view(),
+        name="fmc-treatment-plan-detail",
+    ),
     # ── FMC Admin ─────────────────────────────────────────────────────────────
     path("fmc/profile/", FMCProfileView.as_view(), name="fmc-profile"),
     path("fmc/staff/", FMCStaffListView.as_view(), name="fmc-staff-list"),

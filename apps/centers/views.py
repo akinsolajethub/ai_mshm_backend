@@ -55,6 +55,8 @@ from .models import (
     ClinicianProfile,
     PHCPatientRecord,
     PatientCase,
+    ConsultationNote,
+    TreatmentPlan,
     ChangeRequest,
 )
 from .serializers import (
@@ -70,6 +72,10 @@ from .serializers import (
     UpdateClinicianProfileSerializer,
     CreateClinicianSerializer,
     ChangeRequestSerializer,
+    ConsultationNoteSerializer,
+    CreateConsultationNoteSerializer,
+    TreatmentPlanSerializer,
+    CreateTreatmentPlanSerializer,
     PHCWalkInSerializer,
     PHCWalkInComprehensiveSerializer,
     PHCAdviceSerializer,
@@ -2246,6 +2252,16 @@ def _get_user_fhc(user):
     return None
 
 
+def _get_user_clinician(user):
+    """Returns the ClinicianProfile linked to a clinician user."""
+    if user.role == "clinician":
+        try:
+            return user.clinician_profile
+        except Exception:
+            return None
+    return None
+
+
 def _get_patient_phc_for_discharge(patient):
     """Returns the patient's current registered PHC for discharge notifications."""
     try:
@@ -2420,3 +2436,259 @@ def _serialize_case(case: PatientCase) -> dict:
         "assigned_at": case.assigned_at.isoformat() if case.assigned_at else None,
         "closed_at": case.closed_at.isoformat() if case.closed_at else None,
     }
+
+
+# ── FMC Consultation Notes & Treatment Plans ────────────────────────────────────────
+
+
+class FMCConsultationNotesView(APIView):
+    """
+    GET /api/v1/centers/fmc/cases/<uuid:pk>/consultation-notes/
+    POST /api/v1/centers/fmc/cases/<uuid:pk>/consultation-notes/
+
+    Get all consultation notes for a case, or create a new one.
+    """
+
+    permission_classes = [IsAuthenticated, IsAnyFMCUser]
+
+    @extend_schema(
+        tags=["FMC Portal"],
+        summary="Get consultation notes (FMC10)",
+        description="Retreives all consultation notes for a patient case.",
+    )
+    def get(self, request, pk):
+        fhc = _get_user_fhc(request.user)
+        if not fhc:
+            return error_response("No FMC facility linked to your account.", http_status=404)
+        try:
+            case = PatientCase.objects.get(pk=pk, fhc=fhc)
+        except PatientCase.DoesNotExist:
+            return error_response("Case not found.", http_status=404)
+        notes = case.consultation_notes.all()
+        return success_response(data=ConsultationNoteSerializer(notes, many=True).data)
+
+    @extend_schema(
+        tags=["FMC Portal"],
+        summary="Create consultation note (FMC10)",
+        description=(
+            "Creates a new consultation note for a patient case.\n\n"
+            'Body: `{ "note_type": "initial|followup|routine|urgent", '
+            '"content": "...", '
+            '"vital_signs": {...}, '
+            '"diagnosis": {...} }`'
+        ),
+    )
+    def post(self, request, pk):
+        fhc = _get_user_fhc(request.user)
+        if not fhc:
+            return error_response("No FMC facility linked to your account.", http_status=404)
+        try:
+            case = PatientCase.objects.get(pk=pk, fhc=fhc)
+        except PatientCase.DoesNotExist:
+            return error_response("Case not found.", http_status=404)
+
+        serializer = CreateConsultationNoteSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        clinician = _get_user_clinician(request.user)
+        if not clinician:
+            return error_response("Only clinicians can create consultation notes.", http_status=403)
+
+        note = ConsultationNote.objects.create(
+            case=case,
+            clinician=clinician,
+            **serializer.validated_data,
+        )
+        return success_response(data=ConsultationNoteSerializer(note).data, http_status=201)
+
+
+class FMCConsultationNoteDetailView(APIView):
+    """
+    GET/PATCH/DELETE /api/v1/centers/fmc/consultation-notes/<uuid:pk>/
+
+    Retrieve, update, or delete a specific consultation note.
+    """
+
+    permission_classes = [IsAuthenticated, IsAnyFMCUser]
+
+    @extend_schema(
+        tags=["FMC Portal"],
+        summary="Get consultation note detail (FMC10)",
+    )
+    def get(self, request, pk):
+        try:
+            note = ConsultationNote.objects.select_related("case__fhc", "clinician__user").get(
+                pk=pk
+            )
+        except ConsultationNote.DoesNotExist:
+            return error_response("Consultation note not found.", http_status=404)
+
+        fhc = _get_user_fhc(request.user)
+        if note.case.fhc != fhc:
+            return error_response("Consultation note not found.", http_status=404)
+
+        return success_response(data=ConsultationNoteSerializer(note).data)
+
+    @extend_schema(
+        tags=["FMC Portal"],
+        summary="Update consultation note (FMC10)",
+    )
+    def patch(self, request, pk):
+        try:
+            note = ConsultationNote.objects.select_related("case__fhc", "clinician__user").get(
+                pk=pk
+            )
+        except ConsultationNote.DoesNotExist:
+            return error_response("Consultation note not found.", http_status=404)
+
+        fhc = _get_user_fhc(request.user)
+        if note.case.fhc != fhc:
+            return error_response("Consultation note not found.", http_status=404)
+
+        serializer = CreateConsultationNoteSerializer(data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+
+        for key, value in serializer.validated_data.items():
+            setattr(note, key, value)
+        note.save()
+
+        return success_response(data=ConsultationNoteSerializer(note).data)
+
+    @extend_schema(tags=["FMC Portal"], summary="Delete consultation note (FMC10)")
+    def delete(self, request, pk):
+        try:
+            note = ConsultationNote.objects.select_related("case__fhc").get(pk=pk)
+        except ConsultationNote.DoesNotExist:
+            return error_response("Consultation note not found.", http_status=404)
+
+        fhc = _get_user_fhc(request.user)
+        if note.case.fhc != fhc:
+            return error_response("Consultation note not found.", http_status=404)
+
+        note.delete()
+        return success_response(data={"deleted": True})
+
+
+class FMCTreatmentPlansView(APIView):
+    """
+    GET /api/v1/centers/fmc/cases/<uuid:pk>/treatment-plans/
+    POST /api/v1/centers/fmc/cases/<uuid:pk>/treatment-plans/
+
+    Get all treatment plans for a case, or create a new one.
+    """
+
+    permission_classes = [IsAuthenticated, IsAnyFMCUser]
+
+    @extend_schema(
+        tags=["FMC Portal"],
+        summary="Get treatment plans (FMC11)",
+        description="Retrieves all treatment plans for a patient case.",
+    )
+    def get(self, request, pk):
+        fhc = _get_user_fhc(request.user)
+        if not fhc:
+            return error_response("No FMC facility linked to your account.", http_status=404)
+        try:
+            case = PatientCase.objects.get(pk=pk, fhc=fhc)
+        except PatientCase.DoesNotExist:
+            return error_response("Case not found.", http_status=404)
+        plans = case.treatment_plans.all()
+        return success_response(data=TreatmentPlanSerializer(plans, many=True).data)
+
+    @extend_schema(
+        tags=["FMC Portal"],
+        summary="Create treatment plan (FMC11)",
+        description=(
+            "Creates a new treatment plan for a patient case.\n\n"
+            'Body: `{ "title": "...", '
+            '"description": "...", '
+            '"medications": {...}, '
+            '"lifestyle": {...}, '
+            '"follow_up_days": 30 }`'
+        ),
+    )
+    def post(self, request, pk):
+        fhc = _get_user_fhc(request.user)
+        if not fhc:
+            return error_response("No FMC facility linked to your account.", http_status=404)
+        try:
+            case = PatientCase.objects.get(pk=pk, fhc=fhc)
+        except PatientCase.DoesNotExist:
+            return error_response("Case not found.", http_status=404)
+
+        serializer = CreateTreatmentPlanSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        clinician = _get_user_clinician(request.user)
+        if not clinician:
+            return error_response("Only clinicians can create treatment plans.", http_status=403)
+
+        plan = TreatmentPlan.objects.create(
+            case=case,
+            clinician=clinician,
+            **serializer.validated_data,
+        )
+        return success_response(data=TreatmentPlanSerializer(plan).data, http_status=201)
+
+
+class FMCTreatmentPlanDetailView(APIView):
+    """
+    GET/PATCH/DELETE /api/v1/centers/fmc/treatment-plans/<uuid:pk>/
+
+    Retrieve, update, or delete a specific treatment plan.
+    """
+
+    permission_classes = [IsAuthenticated, IsAnyFMCUser]
+
+    @extend_schema(
+        tags=["FMC Portal"],
+        summary="Get treatment plan detail (FMC11)",
+    )
+    def get(self, request, pk):
+        try:
+            plan = TreatmentPlan.objects.select_related("case__fhc", "clinician__user").get(pk=pk)
+        except TreatmentPlan.DoesNotExist:
+            return error_response("Treatment plan not found.", http_status=404)
+
+        fhc = _get_user_fhc(request.user)
+        if plan.case.fhc != fhc:
+            return error_response("Treatment plan not found.", http_status=404)
+
+        return success_response(data=TreatmentPlanSerializer(plan).data)
+
+    @extend_schema(
+        tags=["FMC Portal"],
+        summary="Update treatment plan (FMC11)",
+    )
+    def patch(self, request, pk):
+        try:
+            plan = TreatmentPlan.objects.select_related("case__fhc", "clinician__user").get(pk=pk)
+        except TreatmentPlan.DoesNotExist:
+            return error_response("Treatment plan not found.", http_status=404)
+
+        fhc = _get_user_fhc(request.user)
+        if plan.case.fhc != fhc:
+            return error_response("Treatment plan not found.", http_status=404)
+
+        serializer = CreateTreatmentPlanSerializer(data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+
+        for key, value in serializer.validated_data.items():
+            setattr(plan, key, value)
+        plan.save()
+
+        return success_response(data=TreatmentPlanSerializer(plan).data)
+
+    @extend_schema(tags=["FMC Portal"], summary="Delete treatment plan (FMC11)")
+    def delete(self, request, pk):
+        try:
+            plan = TreatmentPlan.objects.select_related("case__fhc").get(pk=pk)
+        except TreatmentPlan.DoesNotExist:
+            return error_response("Treatment plan not found.", http_status=404)
+
+        fhc = _get_user_fhc(request.user)
+        if plan.case.fhc != fhc:
+            return error_response("Treatment plan not found.", http_status=404)
+
+        plan.delete()
+        return success_response(data={"deleted": True})

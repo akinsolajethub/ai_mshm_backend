@@ -15,6 +15,9 @@ from .models import (
     FHCStaffProfile,
     ClinicianProfile,
     PHCPatientRecord,
+    PatientCase,
+    ConsultationNote,
+    TreatmentPlan,
     ChangeRequest,
 )
 
@@ -711,3 +714,65 @@ class ChangeRequestSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         patient = self.context["request"].user
         return ChangeRequest.objects.create(patient=patient, **validated_data)
+
+
+# ── FMC Consultation Notes & Treatment Plans ─────────────────────────────────────
+
+
+class ConsultationNoteSerializer(serializers.ModelSerializer):
+    clinician_name = serializers.CharField(source="clinician.user.full_name", read_only=True)
+
+    class Meta:
+        model = ConsultationNote
+        fields = [
+            "id",
+            "case",
+            "clinician",
+            "clinician_name",
+            "note_type",
+            "content",
+            "vital_signs",
+            "diagnosis",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "case", "clinician", "created_at", "updated_at"]
+
+
+class CreateConsultationNoteSerializer(serializers.Serializer):
+    note_type = serializers.ChoiceField(
+        choices=ConsultationNote.NoteType.choices, default=ConsultationNote.NoteType.ROUTINE
+    )
+    content = serializers.CharField()
+    vital_signs = serializers.JSONField(required=False, allow_null=True)
+    diagnosis = serializers.JSONField(required=False, allow_null=True)
+
+
+class TreatmentPlanSerializer(serializers.ModelSerializer):
+    clinician_name = serializers.CharField(source="clinician.user.full_name", read_only=True)
+
+    class Meta:
+        model = TreatmentPlan
+        fields = [
+            "id",
+            "case",
+            "clinician",
+            "clinician_name",
+            "title",
+            "description",
+            "medications",
+            "lifestyle",
+            "follow_up_days",
+            "is_active",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "case", "clinician", "created_at", "updated_at"]
+
+
+class CreateTreatmentPlanSerializer(serializers.Serializer):
+    title = serializers.CharField(max_length=200)
+    description = serializers.CharField()
+    medications = serializers.JSONField(required=False, allow_null=True)
+    lifestyle = serializers.JSONField(required=False, allow_null=True)
+    follow_up_days = serializers.IntegerField(default=30, min_value=1, max_value=365)

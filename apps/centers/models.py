@@ -35,6 +35,7 @@ PHC→FMC LINK (escalates_to)
   PHC Admin and FMC Admin cannot change this link.
   If null: system falls back to any active FMC in same state.
 """
+
 import uuid
 from django.db import models
 from django.conf import settings
@@ -42,18 +43,21 @@ from django.conf import settings
 
 # ── Risk severity scale ───────────────────────────────────────────────────────
 
+
 class RiskSeverity(models.TextChoices):
     """
     Standard four-tier severity scale for all AI-MSHM prediction outputs.
     Mild/Moderate → PHC level. Severe/Very Severe → FMC level.
     """
-    MILD        = "mild",        "Mild"
-    MODERATE    = "moderate",    "Moderate"
-    SEVERE      = "severe",      "Severe"
+
+    MILD = "mild", "Mild"
+    MODERATE = "moderate", "Moderate"
+    SEVERE = "severe", "Severe"
     VERY_SEVERE = "very_severe", "Very Severe"
 
 
 # ── Primary Health Centre (PHC / HCC) ────────────────────────────────────────
+
 
 class HealthCareCenter(models.Model):
     """
@@ -66,36 +70,44 @@ class HealthCareCenter(models.Model):
     """
 
     class CenterStatus(models.TextChoices):
-        ACTIVE   = "active",   "Active"
+        ACTIVE = "active", "Active"
         INACTIVE = "inactive", "Inactive"
-        PENDING  = "pending",  "Pending Verification"
+        PENDING = "pending", "Pending Verification"
 
-    id   = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=255, unique=True)
     code = models.CharField(
-        max_length=20, unique=True,
+        max_length=20,
+        unique=True,
         help_text="Short identifier e.g. PHC-LGS-001",
     )
     address = models.TextField(blank=True)
-    state   = models.CharField(
-        max_length=100, blank=True, db_index=True,
+    state = models.CharField(
+        max_length=100,
+        blank=True,
+        db_index=True,
         help_text="Nigerian state. Used for fallback FMC matching.",
     )
     lga = models.CharField(
-        max_length=100, blank=True, verbose_name="LGA",
+        max_length=100,
+        blank=True,
+        verbose_name="LGA",
         help_text="Local Government Area. Used for proximity filtering.",
     )
-    phone   = models.CharField(max_length=20, blank=True)
-    email   = models.EmailField(blank=True)
+    phone = models.CharField(max_length=20, blank=True)
+    email = models.EmailField(blank=True)
     website = models.URLField(blank=True)
-    status  = models.CharField(
-        max_length=15, choices=CenterStatus.choices, default=CenterStatus.ACTIVE,
+    status = models.CharField(
+        max_length=15,
+        choices=CenterStatus.choices,
+        default=CenterStatus.ACTIVE,
     )
 
     escalates_to = models.ForeignKey(
         "FederalHealthCenter",
         on_delete=models.SET_NULL,
-        null=True, blank=True,
+        null=True,
+        blank=True,
         related_name="referring_phcs",
         help_text=(
             "The FMC this PHC escalates Severe/Very Severe patients to. "
@@ -116,7 +128,8 @@ class HealthCareCenter(models.Model):
     admin_user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
-        null=True, blank=True,
+        null=True,
+        blank=True,
         related_name="managed_hcc",
         limit_choices_to={"role": "hcc_admin"},
         help_text="The PHC Admin account that manages this facility.",
@@ -126,9 +139,9 @@ class HealthCareCenter(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        verbose_name        = "Primary Health Centre (PHC)"
+        verbose_name = "Primary Health Centre (PHC)"
         verbose_name_plural = "Primary Health Centres (PHC)"
-        ordering            = ["state", "name"]
+        ordering = ["state", "name"]
 
     def __str__(self):
         return f"{self.name} ({self.code})"
@@ -159,6 +172,7 @@ class HealthCareCenter(models.Model):
 
 # ── Federal Health Centre (FMC / FHC) ────────────────────────────────────────
 
+
 class FederalHealthCenter(models.Model):
     """
     A Federal Medical Centre (FMC) — hospital-level facility.
@@ -169,29 +183,33 @@ class FederalHealthCenter(models.Model):
     """
 
     class CenterStatus(models.TextChoices):
-        ACTIVE   = "active",   "Active"
+        ACTIVE = "active", "Active"
         INACTIVE = "inactive", "Inactive"
-        PENDING  = "pending",  "Pending Verification"
+        PENDING = "pending", "Pending Verification"
 
-    id   = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=255, unique=True)
     code = models.CharField(max_length=20, unique=True, help_text="e.g. FMC-ABJ-001")
-    address  = models.TextField(blank=True)
-    state    = models.CharField(max_length=100, blank=True, db_index=True)
-    zone     = models.CharField(max_length=100, blank=True, help_text="Geopolitical zone")
-    phone    = models.CharField(max_length=20, blank=True)
-    email    = models.EmailField(blank=True)
-    status   = models.CharField(
-        max_length=15, choices=CenterStatus.choices, default=CenterStatus.ACTIVE,
+    address = models.TextField(blank=True)
+    state = models.CharField(max_length=100, blank=True, db_index=True)
+    zone = models.CharField(max_length=100, blank=True, help_text="Geopolitical zone")
+    phone = models.CharField(max_length=20, blank=True)
+    email = models.EmailField(blank=True)
+    status = models.CharField(
+        max_length=15,
+        choices=CenterStatus.choices,
+        default=CenterStatus.ACTIVE,
     )
     notify_on_very_severe = models.BooleanField(
-        default=True, editable=False,
+        default=True,
+        editable=False,
         help_text="Always True — FMC always receives Very Severe alerts.",
     )
     admin_user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
-        null=True, blank=True,
+        null=True,
+        blank=True,
         related_name="managed_fhc",
         limit_choices_to={"role": "fhc_admin"},
     )
@@ -199,9 +217,9 @@ class FederalHealthCenter(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        verbose_name        = "Federal Medical Centre (FMC)"
+        verbose_name = "Federal Medical Centre (FMC)"
         verbose_name_plural = "Federal Medical Centres (FMC)"
-        ordering            = ["state", "name"]
+        ordering = ["state", "name"]
 
     def __str__(self):
         return f"{self.name} ({self.code})"
@@ -210,12 +228,11 @@ class FederalHealthCenter(models.Model):
         return self.staff_profiles.filter(user__is_active=True).select_related("user")
 
     def get_active_clinicians(self):
-        return self.clinicians.filter(
-            user__is_active=True, is_verified=True
-        ).select_related("user")
+        return self.clinicians.filter(user__is_active=True, is_verified=True).select_related("user")
 
 
 # ── PHC Staff Profile ─────────────────────────────────────────────────────────
+
 
 class HCCStaffProfile(models.Model):
     """
@@ -224,24 +241,28 @@ class HCCStaffProfile(models.Model):
     """
 
     class StaffRole(models.TextChoices):
-        NURSE                    = "nurse",        "Nurse"
-        COMMUNITY_HEALTH_OFFICER = "cho",          "Community Health Officer"
-        HEALTH_ASSISTANT         = "assistant",    "Health Assistant"
-        RECEPTIONIST             = "receptionist", "Receptionist"
-        OTHER                    = "other",        "Other"
+        NURSE = "nurse", "Nurse"
+        COMMUNITY_HEALTH_OFFICER = "cho", "Community Health Officer"
+        HEALTH_ASSISTANT = "assistant", "Health Assistant"
+        RECEPTIONIST = "receptionist", "Receptionist"
+        OTHER = "other", "Other"
 
-    id          = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    user        = models.OneToOneField(
-        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="hcc_staff_profile",
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="hcc_staff_profile",
     )
-    hcc         = models.ForeignKey(
-        HealthCareCenter, on_delete=models.CASCADE, related_name="staff_profiles",
+    hcc = models.ForeignKey(
+        HealthCareCenter,
+        on_delete=models.CASCADE,
+        related_name="staff_profiles",
     )
-    staff_role  = models.CharField(max_length=20, choices=StaffRole.choices, default=StaffRole.OTHER)
+    staff_role = models.CharField(max_length=20, choices=StaffRole.choices, default=StaffRole.OTHER)
     employee_id = models.CharField(max_length=50, blank=True)
-    is_active   = models.BooleanField(default=True)
-    created_at  = models.DateTimeField(auto_now_add=True)
-    updated_at  = models.DateTimeField(auto_now=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         verbose_name = "PHC Staff Profile"
@@ -252,6 +273,7 @@ class HCCStaffProfile(models.Model):
 
 # ── FMC Staff Profile ─────────────────────────────────────────────────────────
 
+
 class FHCStaffProfile(models.Model):
     """
     Extended profile for role='fhc_staff' (FMC case coordinators).
@@ -260,22 +282,26 @@ class FHCStaffProfile(models.Model):
 
     class StaffRole(models.TextChoices):
         CASE_COORDINATOR = "coordinator", "Case Coordinator"
-        TRIAGE_OFFICER   = "triage",      "Triage Officer"
-        RECORDS_OFFICER  = "records",     "Records Officer"
-        OTHER            = "other",       "Other"
+        TRIAGE_OFFICER = "triage", "Triage Officer"
+        RECORDS_OFFICER = "records", "Records Officer"
+        OTHER = "other", "Other"
 
-    id          = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    user        = models.OneToOneField(
-        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="fhc_staff_profile",
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="fhc_staff_profile",
     )
-    fhc         = models.ForeignKey(
-        FederalHealthCenter, on_delete=models.CASCADE, related_name="staff_profiles",
+    fhc = models.ForeignKey(
+        FederalHealthCenter,
+        on_delete=models.CASCADE,
+        related_name="staff_profiles",
     )
-    staff_role  = models.CharField(max_length=20, choices=StaffRole.choices, default=StaffRole.OTHER)
+    staff_role = models.CharField(max_length=20, choices=StaffRole.choices, default=StaffRole.OTHER)
     employee_id = models.CharField(max_length=50, blank=True)
-    is_active   = models.BooleanField(default=True)
-    created_at  = models.DateTimeField(auto_now_add=True)
-    updated_at  = models.DateTimeField(auto_now=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         verbose_name = "FMC Staff Profile"
@@ -286,6 +312,7 @@ class FHCStaffProfile(models.Model):
 
 # ── Clinician Profile ─────────────────────────────────────────────────────────
 
+
 class ClinicianProfile(models.Model):
     """
     Extended profile for role='clinician' (licensed doctors).
@@ -294,35 +321,42 @@ class ClinicianProfile(models.Model):
     """
 
     class Specialization(models.TextChoices):
-        GENERAL_PRACTICE    = "general_practice",    "General Practice"
-        OBSTETRICS_GYNAE    = "obstetrics_gynae",     "Obstetrics & Gynaecology"
-        ENDOCRINOLOGY       = "endocrinology",        "Endocrinology"
-        CARDIOLOGY          = "cardiology",           "Cardiology"
-        INTERNAL_MEDICINE   = "internal_medicine",    "Internal Medicine"
-        REPRODUCTIVE_HEALTH = "reproductive_health",  "Reproductive Health"
-        MIDWIFERY           = "midwifery",            "Midwifery"
-        NURSING             = "nursing",              "Nursing"
-        OTHER               = "other",                "Other"
+        GENERAL_PRACTICE = "general_practice", "General Practice"
+        OBSTETRICS_GYNAE = "obstetrics_gynae", "Obstetrics & Gynaecology"
+        ENDOCRINOLOGY = "endocrinology", "Endocrinology"
+        CARDIOLOGY = "cardiology", "Cardiology"
+        INTERNAL_MEDICINE = "internal_medicine", "Internal Medicine"
+        REPRODUCTIVE_HEALTH = "reproductive_health", "Reproductive Health"
+        MIDWIFERY = "midwifery", "Midwifery"
+        NURSING = "nursing", "Nursing"
+        OTHER = "other", "Other"
 
-    id                  = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    user                = models.OneToOneField(
-        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="clinician_profile",
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="clinician_profile",
     )
-    fhc                 = models.ForeignKey(
-        FederalHealthCenter, on_delete=models.SET_NULL, null=True, blank=True,
+    fhc = models.ForeignKey(
+        FederalHealthCenter,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
         related_name="clinicians",
     )
-    specialization      = models.CharField(
-        max_length=30, choices=Specialization.choices, default=Specialization.GENERAL_PRACTICE,
+    specialization = models.CharField(
+        max_length=30,
+        choices=Specialization.choices,
+        default=Specialization.GENERAL_PRACTICE,
     )
-    license_number      = models.CharField(max_length=50, blank=True)
+    license_number = models.CharField(max_length=50, blank=True)
     years_of_experience = models.PositiveSmallIntegerField(default=0)
-    bio                 = models.TextField(blank=True)
-    is_verified         = models.BooleanField(default=False)
-    verified_at         = models.DateTimeField(null=True, blank=True)
-    profile_photo       = models.ImageField(upload_to="clinicians/", null=True, blank=True)
-    created_at          = models.DateTimeField(auto_now_add=True)
-    updated_at          = models.DateTimeField(auto_now=True)
+    bio = models.TextField(blank=True)
+    is_verified = models.BooleanField(default=False)
+    verified_at = models.DateTimeField(null=True, blank=True)
+    profile_photo = models.ImageField(upload_to="clinicians/", null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         verbose_name = "Clinician Profile"
@@ -336,6 +370,7 @@ class ClinicianProfile(models.Model):
 
 
 # ── PHC Patient Record ────────────────────────────────────────────────────────
+
 
 class PHCPatientRecord(models.Model):
     """
@@ -374,57 +409,65 @@ class PHCPatientRecord(models.Model):
     """
 
     class RecordStatus(models.TextChoices):
-        NEW          = "new",          "New — Awaiting Review"
+        NEW = "new", "New — Awaiting Review"
         UNDER_REVIEW = "under_review", "Under Review"
         ACTION_TAKEN = "action_taken", "Action Taken"
-        ESCALATED    = "escalated",    "Escalated to FMC"
-        DISCHARGED   = "discharged",   "Discharged"
+        ESCALATED = "escalated", "Escalated to FMC"
+        DISCHARGED = "discharged", "Discharged"
 
     class Condition(models.TextChoices):
-        PCOS           = "pcos",           "PCOS"
-        MATERNAL       = "maternal",       "Maternal Health"
+        PCOS = "pcos", "PCOS"
+        MATERNAL = "maternal", "Maternal Health"
         CARDIOVASCULAR = "cardiovascular", "Cardiovascular"
 
-    id        = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    patient   = models.ForeignKey(
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    patient = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="phc_records",
         limit_choices_to={"role": "patient"},
     )
-    hcc       = models.ForeignKey(
+    hcc = models.ForeignKey(
         HealthCareCenter,
         on_delete=models.SET_NULL,
-        null=True, blank=True,
+        null=True,
+        blank=True,
         related_name="patient_records",
         help_text="The PHC managing this patient at the time this record was created.",
     )
-    condition  = models.CharField(max_length=20, choices=Condition.choices)
-    severity   = models.CharField(
-        max_length=20, choices=RiskSeverity.choices,
+    condition = models.CharField(max_length=20, choices=Condition.choices)
+    severity = models.CharField(
+        max_length=20,
+        choices=RiskSeverity.choices,
         help_text="Should only be mild or moderate at PHC level.",
     )
-    status     = models.CharField(
-        max_length=20, choices=RecordStatus.choices,
-        default=RecordStatus.NEW, db_index=True,
+    status = models.CharField(
+        max_length=20,
+        choices=RecordStatus.choices,
+        default=RecordStatus.NEW,
+        db_index=True,
     )
     opening_score = models.PositiveSmallIntegerField(
-        null=True, blank=True,
+        null=True,
+        blank=True,
         help_text="Risk score (0–100) when this record was created.",
     )
     latest_score = models.PositiveSmallIntegerField(
-        null=True, blank=True,
+        null=True,
+        blank=True,
         help_text="Most recent risk score — updated each time ML runs.",
     )
 
     # PHC staff notes — lifestyle advice, observations
-    notes          = models.TextField(blank=True)
+    notes = models.TextField(blank=True)
     last_advice_at = models.DateTimeField(
-        null=True, blank=True,
+        null=True,
+        blank=True,
         help_text="Timestamp of last lifestyle advice sent to patient.",
     )
-    next_followup  = models.DateField(
-        null=True, blank=True,
+    next_followup = models.DateField(
+        null=True,
+        blank=True,
         help_text="Date PHC staff scheduled a follow-up for this patient.",
     )
 
@@ -432,18 +475,19 @@ class PHCPatientRecord(models.Model):
     escalated_to_case = models.OneToOneField(
         "PatientCase",
         on_delete=models.SET_NULL,
-        null=True, blank=True,
+        null=True,
+        blank=True,
         related_name="phc_record",
         help_text="The FMC PatientCase created when this record was escalated.",
     )
 
-    opened_at  = models.DateTimeField(auto_now_add=True)
-    closed_at  = models.DateTimeField(null=True, blank=True)
+    opened_at = models.DateTimeField(auto_now_add=True)
+    closed_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
-        verbose_name        = "PHC Patient Record"
+        verbose_name = "PHC Patient Record"
         verbose_name_plural = "PHC Patient Records"
-        ordering            = ["-opened_at"]
+        ordering = ["-opened_at"]
         indexes = [
             models.Index(fields=["patient", "status"]),
             models.Index(fields=["hcc", "status"]),
@@ -461,12 +505,14 @@ class PHCPatientRecord(models.Model):
 
     def close(self, status: str):
         from django.utils import timezone
-        self.status    = status
+
+        self.status = status
         self.closed_at = timezone.now()
         self.save(update_fields=["status", "closed_at"])
 
 
 # ── FMC Patient Case ──────────────────────────────────────────────────────────
+
 
 class PatientCase(models.Model):
     """
@@ -495,50 +541,58 @@ class PatientCase(models.Model):
     """
 
     class CaseStatus(models.TextChoices):
-        OPEN            = "open",            "Open — Awaiting Assignment"
-        ASSIGNED        = "assigned",        "Assigned to Clinician"
+        OPEN = "open", "Open — Awaiting Assignment"
+        ASSIGNED = "assigned", "Assigned to Clinician"
         UNDER_TREATMENT = "under_treatment", "Under Treatment"
-        DISCHARGED      = "discharged",      "Discharged"
+        DISCHARGED = "discharged", "Discharged"
 
     class Condition(models.TextChoices):
-        PCOS           = "pcos",           "PCOS"
-        MATERNAL       = "maternal",       "Maternal Health"
+        PCOS = "pcos", "PCOS"
+        MATERNAL = "maternal", "Maternal Health"
         CARDIOVASCULAR = "cardiovascular", "Cardiovascular"
 
-    id        = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    patient   = models.ForeignKey(
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    patient = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="patient_cases",
         limit_choices_to={"role": "patient"},
     )
-    fhc       = models.ForeignKey(
-        FederalHealthCenter, on_delete=models.SET_NULL, null=True, blank=True,
+    fhc = models.ForeignKey(
+        FederalHealthCenter,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
         related_name="cases",
         help_text="FMC handling this case. Set from PHC.escalates_to at creation.",
     )
     clinician = models.ForeignKey(
-        ClinicianProfile, on_delete=models.SET_NULL, null=True, blank=True,
+        ClinicianProfile,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
         related_name="assigned_cases",
         help_text="Assigned by FMC staff. Null until assignment.",
     )
-    condition     = models.CharField(max_length=20, choices=Condition.choices)
-    severity      = models.CharField(max_length=20, choices=RiskSeverity.choices)
-    status        = models.CharField(
-        max_length=20, choices=CaseStatus.choices,
-        default=CaseStatus.OPEN, db_index=True,
+    condition = models.CharField(max_length=20, choices=Condition.choices)
+    severity = models.CharField(max_length=20, choices=RiskSeverity.choices)
+    status = models.CharField(
+        max_length=20,
+        choices=CaseStatus.choices,
+        default=CaseStatus.OPEN,
+        db_index=True,
     )
     opening_score = models.PositiveSmallIntegerField(null=True, blank=True)
     closing_score = models.PositiveSmallIntegerField(null=True, blank=True)
-    fmc_notes     = models.TextField(blank=True)
-    opened_at     = models.DateTimeField(auto_now_add=True)
-    assigned_at   = models.DateTimeField(null=True, blank=True)
-    closed_at     = models.DateTimeField(null=True, blank=True)
+    fmc_notes = models.TextField(blank=True)
+    opened_at = models.DateTimeField(auto_now_add=True)
+    assigned_at = models.DateTimeField(null=True, blank=True)
+    closed_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
-        verbose_name        = "FMC Patient Case"
+        verbose_name = "FMC Patient Case"
         verbose_name_plural = "FMC Patient Cases"
-        ordering            = ["-opened_at"]
+        ordering = ["-opened_at"]
         indexes = [
             models.Index(fields=["patient", "status"]),
             models.Index(fields=["fhc", "status"]),
@@ -556,20 +610,83 @@ class PatientCase(models.Model):
 
     def assign_clinician(self, clinician: "ClinicianProfile"):
         from django.utils import timezone
-        self.clinician   = clinician
-        self.status      = self.CaseStatus.ASSIGNED
+
+        self.clinician = clinician
+        self.status = self.CaseStatus.ASSIGNED
         self.assigned_at = timezone.now()
         self.save(update_fields=["clinician", "status", "assigned_at"])
 
     def close(self, status: str, closing_score: int = None):
         from django.utils import timezone
-        self.status        = status
+
+        self.status = status
         self.closing_score = closing_score
-        self.closed_at     = timezone.now()
+        self.closed_at = timezone.now()
         self.save(update_fields=["status", "closing_score", "closed_at"])
 
 
-# ── Change Request ────────────────────────────────────────────────────────────
+class ConsultationNote(models.Model):
+    """
+    Consultation notes recorded by clinicians during patient visits.
+    Created via POST /api/v1/centers/fmc/cases/<uuid>/consultation-notes/
+    """
+
+    class NoteType(models.TextChoices):
+        INITIAL = "initial", "Initial Consultation"
+        FOLLOWUP = "followup", "Follow-up Visit"
+        ROUTINE = "routine", "Routine Check"
+        URGENT = "urgent", "Urgent Care"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    case = models.ForeignKey(
+        PatientCase, on_delete=models.CASCADE, related_name="consultation_notes"
+    )
+    clinician = models.ForeignKey(
+        ClinicianProfile, on_delete=models.SET_NULL, null=True, related_name="consultation_notes"
+    )
+    note_type = models.CharField(max_length=20, choices=NoteType.choices, default=NoteType.ROUTINE)
+    content = models.TextField()
+    vital_signs = models.JSONField(blank=True, null=True)
+    diagnosis = models.JSONField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Note({self.case.patient.email} | {self.note_type} | {self.created_at.date()})"
+
+
+class TreatmentPlan(models.Model):
+    """
+    Treatment plans created by clinicians for patient cases.
+    Created via POST /api/v1/centers/fmc/cases/<uuid>/treatment-plans/
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    case = models.ForeignKey(PatientCase, on_delete=models.CASCADE, related_name="treatment_plans")
+    clinician = models.ForeignKey(
+        ClinicianProfile, on_delete=models.SET_NULL, null=True, related_name="treatment_plans"
+    )
+    title = models.CharField(max_length=200)
+    description = models.TextField()
+    medications = models.JSONField(blank=True, null=True)
+    lifestyle = models.JSONField(blank=True, null=True)
+    follow_up_days = models.PositiveSmallIntegerField(default=30)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Plan({self.case.patient.email} | {self.title} | {self.created_at.date()})"
+
+
+# ── Change Request ───────────────────────────────────────────��────────────────
+
 
 class ChangeRequest(models.Model):
     """
@@ -579,42 +696,47 @@ class ChangeRequest(models.Model):
     """
 
     class RequestType(models.TextChoices):
-        CHANGE_PHC   = "change_phc",   "Change Home PHC"
+        CHANGE_PHC = "change_phc", "Change Home PHC"
         REPORT_ISSUE = "report_issue", "Report an Issue"
-        OTHER        = "other",        "Other"
+        OTHER = "other", "Other"
 
     class RequestStatus(models.TextChoices):
-        PENDING  = "pending",  "Pending Review"
+        PENDING = "pending", "Pending Review"
         REVIEWED = "reviewed", "Under Review"
         RESOLVED = "resolved", "Resolved"
         REJECTED = "rejected", "Rejected"
 
-    id           = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    patient      = models.ForeignKey(
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    patient = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="change_requests",
         limit_choices_to={"role": "patient"},
     )
     request_type = models.CharField(max_length=20, choices=RequestType.choices)
-    status       = models.CharField(
-        max_length=15, choices=RequestStatus.choices,
-        default=RequestStatus.PENDING, db_index=True,
+    status = models.CharField(
+        max_length=15,
+        choices=RequestStatus.choices,
+        default=RequestStatus.PENDING,
+        db_index=True,
     )
     requested_hcc = models.ForeignKey(
-        HealthCareCenter, on_delete=models.SET_NULL, null=True, blank=True,
+        HealthCareCenter,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
         related_name="incoming_change_requests",
         help_text="The PHC the patient wants to switch to (CHANGE_PHC only).",
     )
-    description  = models.TextField()
-    admin_notes  = models.TextField(blank=True)
-    created_at   = models.DateTimeField(auto_now_add=True)
-    resolved_at  = models.DateTimeField(null=True, blank=True)
+    description = models.TextField()
+    admin_notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    resolved_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
-        verbose_name        = "Change Request"
+        verbose_name = "Change Request"
         verbose_name_plural = "Change Requests"
-        ordering            = ["-created_at"]
+        ordering = ["-created_at"]
 
     def __str__(self):
         return f"ChangeRequest({self.patient.email} | {self.request_type} | {self.status})"
