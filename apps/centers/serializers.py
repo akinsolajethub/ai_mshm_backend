@@ -209,6 +209,7 @@ class FHCStaffProfileSerializer(serializers.ModelSerializer):
     user_full_name = serializers.CharField(source="user.full_name", read_only=True)
     fhc_name = serializers.CharField(source="fhc.name", read_only=True)
     fhc_code = serializers.CharField(source="fhc.code", read_only=True)
+    is_active = serializers.BooleanField(source="user.is_active", read_only=True)
 
     class Meta:
         model = FHCStaffProfile
@@ -230,6 +231,9 @@ class FHCStaffProfileSerializer(serializers.ModelSerializer):
             "user_full_name",
             "fhc_name",
             "fhc_code",
+            "staff_role",
+            "employee_id",
+            "is_active",
             "created_at",
             "updated_at",
         ]

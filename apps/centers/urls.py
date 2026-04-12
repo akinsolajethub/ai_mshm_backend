@@ -83,6 +83,7 @@ from .views import (
     FMCTreatmentPlanDetailView,
     # FMC Admin
     FMCProfileView,
+    FMCNetworkPHCView,
     FMCStaffListView,
     FMCStaffDetailView,
     FMCClinicianListView,
@@ -171,6 +172,7 @@ urlpatterns = [
     ),
     # ── FMC Admin ─────────────────────────────────────────────────────────────
     path("fmc/profile/", FMCProfileView.as_view(), name="fmc-profile"),
+    path("fmc/network-phc/", FMCNetworkPHCView.as_view(), name="fmc-network-phc"),
     path("fmc/staff/", FMCStaffListView.as_view(), name="fmc-staff-list"),
     path("fmc/staff/<uuid:pk>/", FMCStaffDetailView.as_view(), name="fmc-staff-detail"),
     path("fmc/clinicians/", FMCClinicianListView.as_view(), name="fmc-clinician-list"),

@@ -273,7 +273,8 @@ class ChangePasswordView(APIView):
         serializer = ChangePasswordSerializer(data=request.data, context={"request": request})
         serializer.is_valid(raise_exception=True)
         request.user.set_password(serializer.validated_data["new_password"])
-        request.user.save(update_fields=["password"])
+        request.user.must_change_password = False
+        request.user.save(update_fields=["password", "must_change_password"])
         return success_response(message="Password changed successfully.")
 
 

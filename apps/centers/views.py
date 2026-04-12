@@ -77,15 +77,12 @@ from .serializers import (
     TreatmentPlanSerializer,
     CreateTreatmentPlanSerializer,
     PHCWalkInSerializer,
-    PHCWalkInComprehensiveSerializer,
     PHCAdviceSerializer,
-    PHCAdviceResponseSerializer,
-    PHCAnalyticsSerializer,
-    FMCAnalyticsSerializer,
-    FMCAlertListSerializer,
     FMCDiagnosticsRequestSerializer,
     FMCDischargeSerializer,
 )
+
+from apps.accounts.tasks import send_staff_credentials_email_task
 
 User = get_user_model()
 
@@ -465,6 +462,8 @@ class PHCWalkInView(APIView):
             role=User.Role.PATIENT,
             is_email_verified=True,  # PHC staff vouches for identity
         )
+        patient.must_change_password = True
+        patient.save(update_fields=["must_change_password"])
 
         # Create onboarding profile and link to this PHC
         from apps.onboarding.models import OnboardingProfile
@@ -555,6 +554,8 @@ class PHCWalkInComprehensiveView(APIView):
             role=User.Role.PATIENT,
             is_email_verified=True,
         )
+        patient.must_change_password = True
+        patient.save(update_fields=["must_change_password"])
 
         from apps.onboarding.models import OnboardingProfile
 
@@ -852,11 +853,27 @@ class FMCAnalyticsView(APIView):
         description="Returns analytics data for the FMC including case severity and outcomes.",
     )
     def get(self, request):
-        fhc = _get_user_fmc(request.user)
+        # Debug: Check if permissions allow access
+        print(f"FMCAnalyticsView: user={request.user.email}, role={request.user.role}")
+        print(
+            f"FMCAnalyticsView: has fhc_staff_profile={hasattr(request.user, 'fhc_staff_profile')}"
+        )
+
+        fhc = _get_user_fhc(request.user)
+        print(f"FMCAnalyticsView: fhc={fhc}")
+
         if not fhc:
             return error_response("No FMC facility linked to your account.", http_status=404)
 
         range_param = request.query_params.get("range", "30d")
+
+        # Map frontend params to backend values
+        range_map = {
+            "this_month": "30d",
+            "this_week": "7d",
+            "3_months": "90d",
+        }
+        range_param = range_map.get(range_param, range_param)
 
         from datetime import timedelta
         from django.utils import timezone
@@ -875,7 +892,6 @@ class FMCAnalyticsView(APIView):
         active_cases = all_cases.exclude(
             status__in=[
                 PatientCase.CaseStatus.DISCHARGED,
-                PatientCase.CaseStatus.EXTERNAL_REFERRAL,
             ]
         )
 
@@ -944,9 +960,7 @@ class FMCAnalyticsView(APIView):
         outcomes_tracker = {
             "resolved": all_cases.filter(status=PatientCase.CaseStatus.DISCHARGED).count(),
             "under_treatment": active_cases.count(),
-            "referred_externally": all_cases.filter(
-                status=PatientCase.CaseStatus.EXTERNAL_REFERRAL
-            ).count(),
+            "referred_externally": 0,
         }
 
         from apps.centers.models import ClinicianProfile
@@ -982,6 +996,79 @@ class FMCAnalyticsView(APIView):
         )
 
 
+class FMCNetworkPHCView(APIView):
+    """
+    GET /api/v1/centers/fmc/network-phc/
+    Get PHCs that refer to this FMC with referral statistics.
+    """
+
+    permission_classes = [IsAuthenticated, IsAnyFMCUser]
+
+    @extend_schema(
+        tags=["FMC Portal"],
+        summary="Get FMC network PHCs (FMC13)",
+        description="Returns PHCs that refer to this FMC with referral statistics.",
+    )
+    def get(self, request):
+        fhc = _get_user_fhc(request.user)
+        if not fhc:
+            return error_response("No FMC facility linked to your account.", http_status=404)
+
+        # Find PHCs that have escalates_to pointing to this FMC
+        from .models import HealthCareCenter, PatientCase, PHCPatientRecord
+
+        # Get PHCs that escalate to this FMC
+        referring_phcs = HealthCareCenter.objects.filter(
+            escalates_to=fhc, status=HealthCareCenter.CenterStatus.ACTIVE
+        ).select_related("escalates_to")
+
+        # For each PHC, get referral stats
+        phc_list = []
+        for phc in referring_phcs:
+            # Get cases from this PHC (via phc_record relationship)
+            phc_cases = PatientCase.objects.filter(fhc=fhc).select_related("phc_record")
+
+            # Filter cases that came from this PHC
+            total_referrals = phc_cases.filter(phc_record__hcc=phc).count()
+            pending_referrals = (
+                phc_cases.exclude(
+                    status__in=[
+                        PatientCase.CaseStatus.DISCHARGED,
+                    ]
+                )
+                .filter(phc_record__hcc=phc)
+                .count()
+            )
+
+            # Get last referral date
+            last_case = phc_cases.filter(phc_record__hcc=phc).order_by("-opened_at").first()
+            last_referral_date = (
+                last_case.opened_at.isoformat() if last_case and last_case.opened_at else None
+            )
+
+            phc_list.append(
+                {
+                    "id": str(phc.id),
+                    "name": phc.name,
+                    "code": phc.code,
+                    "address": phc.address,
+                    "state": phc.state,
+                    "lga": phc.lga,
+                    "phone": phc.phone,
+                    "email": phc.email,
+                    "status": phc.status.lower() if hasattr(phc.status, "lower") else phc.status,
+                    "total_referrals": total_referrals,
+                    "pending_referrals": pending_referrals,
+                    "last_referral_date": last_referral_date,
+                }
+            )
+
+        # Sort by total referrals descending
+        phc_list.sort(key=lambda x: x["total_referrals"], reverse=True)
+
+        return success_response(data=phc_list)
+
+
 class FMCAlertsView(APIView):
     """
     GET /api/v1/fmc/alerts/
@@ -996,18 +1083,18 @@ class FMCAlertsView(APIView):
         description="Returns priority-sorted alerts including critical unassigned cases.",
     )
     def get(self, request):
-        fhc = _get_user_fmc(request.user)
+        fhc = _get_user_fhc(request.user)
         if not fhc:
             return error_response("No FMC facility linked to your account.", http_status=404)
 
         from .models import PatientCase
+        from datetime import timedelta
 
         active_cases = (
             PatientCase.objects.filter(fhc=fhc)
             .exclude(
                 status__in=[
                     PatientCase.CaseStatus.DISCHARGED,
-                    PatientCase.CaseStatus.EXTERNAL_REFERRAL,
                 ]
             )
             .select_related("patient")
@@ -1310,6 +1397,8 @@ class PHCStaffListView(APIView):
             role=User.Role.HCC_STAFF,
             is_email_verified=True,
         )
+        user.must_change_password = True
+        user.save(update_fields=["must_change_password"])
 
         profile = HCCStaffProfile.objects.create(
             user=user,
@@ -1376,13 +1465,16 @@ class PHCStaffDetailView(APIView):
 
 
 class FMCProfileView(APIView):
-    permission_classes = [IsAuthenticated, IsFHCAdmin]
+    permission_classes = [IsAuthenticated, IsAnyFMCUser]
 
     def _get_center(self, user):
-        try:
+        # For FMC admins, they have managed_fhc directly
+        if hasattr(user, "managed_fhc") and user.managed_fhc:
             return user.managed_fhc
-        except Exception:
-            return None
+        # For FMC staff, check their staff profile
+        if hasattr(user, "fhc_staff_profile") and user.fhc_staff_profile:
+            return user.fhc_staff_profile.fhc
+        return None
 
     @extend_schema(
         tags=["FMC Admin"],
@@ -1414,11 +1506,11 @@ class FMCProfileView(APIView):
 
 
 class FMCStaffListView(APIView):
-    permission_classes = [IsAuthenticated, IsFHCAdmin]
+    permission_classes = [IsAuthenticated, IsAnyFMCUser]
 
     @extend_schema(tags=["FMC Admin"], summary="List FMC staff accounts")
     def get(self, request):
-        center = getattr(request.user, "managed_fhc", None)
+        center = _get_user_fhc(request.user)
         if not center:
             return error_response("No FMC facility linked to your account.", http_status=404)
         staff = FHCStaffProfile.objects.filter(fhc=center).select_related("user")
@@ -1442,15 +1534,30 @@ class FMCStaffListView(APIView):
             role=User.Role.FHC_STAFF,
             is_email_verified=True,
         )
+        user.must_change_password = True
+        user.save(update_fields=["must_change_password"])
+
         profile = FHCStaffProfile.objects.create(
             user=user,
             fhc=center,
             staff_role=data["staff_role"],
             employee_id=data.get("employee_id", ""),
         )
+
+        send_staff_credentials_email_task.delay(
+            user_name=data["full_name"],
+            user_email=data["email"],
+            temp_password=temp_password,
+            facility_name=center.name,
+            role=FHCStaffProfile.StaffRole(data["staff_role"]).label,
+        )
+
         return created_response(
-            data=FHCStaffProfileSerializer(profile).data,
-            message=f"FMC staff account created for {user.email}.",
+            data={
+                **FHCStaffProfileSerializer(profile).data,
+                "temp_password": temp_password,
+            },
+            message=f"FMC staff account created for {user.email}. Share the temporary password with the new staff member.",
         )
 
 
@@ -1501,13 +1608,17 @@ class FMCStaffDetailView(APIView):
 
 
 class FMCClinicianListView(APIView):
-    permission_classes = [IsAuthenticated, IsFHCAdmin]
+    permission_classes = [IsAuthenticated, IsAnyFMCUser]
 
     @extend_schema(tags=["FMC Admin"], summary="List clinicians for this FMC")
     def get(self, request):
         center = getattr(request.user, "managed_fhc", None)
         if not center:
-            return error_response("No FMC facility linked to your account.", http_status=404)
+            # Try staff profile for non-admin staff
+            if hasattr(request.user, "fhc_staff_profile") and request.user.fhc_staff_profile:
+                center = request.user.fhc_staff_profile.fhc
+            else:
+                return error_response("No FMC facility linked to your account.", http_status=404)
         clinicians = ClinicianProfile.objects.filter(fhc=center).select_related("user")
         return success_response(
             data=ClinicianProfileSerializer(
@@ -1536,6 +1647,9 @@ class FMCClinicianListView(APIView):
             role=User.Role.CLINICIAN,
             is_email_verified=True,
         )
+        user.must_change_password = True
+        user.save(update_fields=["must_change_password"])
+
         profile = ClinicianProfile.objects.create(
             user=user,
             fhc=center,
@@ -1661,7 +1775,9 @@ class FMCCaseListView(APIView):
         if not fhc:
             return error_response("No FMC facility linked to your account.", http_status=404)
 
-        qs = PatientCase.objects.filter(fhc=fhc).select_related("patient", "clinician__user")
+        qs = PatientCase.objects.filter(fhc=fhc).select_related(
+            "patient", "clinician__user", "phc_record", "phc_record__hcc"
+        )
         status = request.query_params.get("status")
         condition = request.query_params.get("condition")
         severity = request.query_params.get("severity")
@@ -2408,6 +2524,18 @@ def _serialize_phc_record(record: PHCPatientRecord) -> dict:
 
 def _serialize_case(case: PatientCase) -> dict:
     """Serializes a PatientCase for API responses."""
+    # Try to get referring PHC from related PHCPatientRecord
+    referring_hcc = None
+    try:
+        phc_record = getattr(case, "phc_record", None)
+        if phc_record and hasattr(phc_record, "hcc") and phc_record.hcc:
+            referring_hcc = {
+                "id": str(phc_record.hcc.id),
+                "name": phc_record.hcc.name,
+            }
+    except Exception:
+        pass
+
     return {
         "id": str(case.id),
         "patient": {
@@ -2416,6 +2544,7 @@ def _serialize_case(case: PatientCase) -> dict:
             "email": case.patient.email,
         },
         "fhc": case.fhc.name if case.fhc else None,
+        "hcc": referring_hcc,
         "clinician": {
             "id": str(case.clinician.id),
             "name": f"Dr. {case.clinician.user.full_name}",

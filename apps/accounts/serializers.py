@@ -198,6 +198,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
             "role",
             "avatar_url",
             "is_email_verified",
+            "must_change_password",
             "onboarding_completed",
             "onboarding_step",
             "center_info",
@@ -303,17 +304,26 @@ class ResetPasswordSerializer(serializers.Serializer):
 class ChangePasswordSerializer(serializers.Serializer):
     """
     Allows an authenticated user to change their password.
-    Requires the current password as confirmation.
+    If user must_change_password=True, old_password is not required (temp password scenario).
     """
 
-    old_password = serializers.CharField()
-    new_password = serializers.CharField(validators=[validate_password])
+    old_password = serializers.CharField(required=False, allow_blank=True)
+    new_password = serializers.CharField(min_length=8)
 
-    def validate_old_password(self, value):
+    def validate(self, attrs):
         user = self.context["request"].user
-        if not user.check_password(value):
-            raise serializers.ValidationError("Current password is incorrect.")
-        return value
+        old_password = attrs.get("old_password", "")
+
+        # If user must_change_password (temp password scenario), skip old_password check
+        if getattr(user, "must_change_password", False):
+            return attrs
+
+        # Otherwise require and validate old_password
+        if not old_password:
+            raise serializers.ValidationError({"old_password": "Current password is required."})
+        if not user.check_password(old_password):
+            raise serializers.ValidationError({"old_password": "Current password is incorrect."})
+        return attrs
 
 
 class ConfirmPasswordSerializer(serializers.Serializer):
