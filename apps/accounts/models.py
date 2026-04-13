@@ -246,3 +246,31 @@ class PasswordResetToken(models.Model):
 
     def __str__(self):
         return f"PasswordReset({self.user.email})"
+
+
+# ── Login Attempt Tracking ───────────────────────────────────────────────────
+
+
+class LoginAttempt(models.Model):
+    """
+    Tracks failed login attempts to implement account lockout.
+    Locked out after MAX_LOGIN_ATTEMPTS failed attempts.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    email = models.EmailField(db_index=True)
+    ip_address = models.GenericIPAddressField(db_index=True)
+    attempts = models.PositiveSmallIntegerField(default=0)
+    locked_until = models.DateTimeField(null=True, blank=True)
+    last_attempt_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Login Attempt"
+        ordering = ["-created_at"]
+
+    def is_locked(self) -> bool:
+        return self.locked_until and timezone.now() < self.locked_until
+
+    def __str__(self):
+        return f"LoginAttempt({self.email})"

@@ -1,15 +1,17 @@
 """
 apps/accounts/services.py
-──────────────────────────
+─────────────────────────
 All auth business logic lives here — views just validate input and call services.
 This keeps views thin and logic testable in isolation.
 """
 
 import logging
+import ipaddress
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.utils import timezone
+from django.core.cache import cache
 
 from core.utils.helpers import (
     generate_secure_token,
@@ -17,15 +19,70 @@ from core.utils.helpers import (
     token_expiry,
     build_frontend_url,
 )
-from .models import EmailVerificationToken, PasswordResetToken
+from .models import EmailVerificationToken, PasswordResetToken, LoginAttempt
 from .tasks import send_verification_email_task, send_password_reset_email_task
 from core.utils.celery_helpers import run_task
 
 logger = logging.getLogger(__name__)
+security_logger = logging.getLogger("django.security")
 User = get_user_model()
 
 
 class AuthService:
+    # ── Rate Limiting ─────────────────────────────────────────────────────────
+
+    @staticmethod
+    def check_rate_limit(email: str, ip_address: str) -> None:
+        """
+        Check if account is locked due to too many failed attempts.
+        Raises ValueError if locked out.
+        """
+        locked_key = f"login_lock:{email}"
+        locked_until = cache.get(locked_key)
+        if locked_until:
+            from django.utils import timezone
+
+            remaining = (locked_until - timezone.now()).total_seconds() // 60
+            raise ValueError(
+                f"Account temporarily locked. Try again in {int(remaining) + 1} minutes."
+            )
+
+        # Check DB for existing lockout
+        try:
+            attempt = LoginAttempt.objects.get(email=email.lower())
+            if attempt.is_locked():
+                raise ValueError("Account temporarily locked. Try again later.")
+        except LoginAttempt.DoesNotExist:
+            pass
+
+    @staticmethod
+    def record_failed_attempt(email: str, ip_address: str) -> None:
+        """Record a failed login attempt and lock account if threshold reached."""
+        email = email.lower()
+        max_attempts = getattr(settings, "MAX_LOGIN_ATTEMPTS", 5)
+        lockout_minutes = getattr(settings, "LOGIN_LOCKOUT_DURATION_MINUTES", 15)
+
+        attempt, _ = LoginAttempt.objects.get_or_create(
+            email=email, defaults={"ip_address": ip_address, "attempts": 0}
+        )
+        attempt.attempts += 1
+        attempt.last_attempt_at = timezone.now()
+
+        if attempt.attempts >= max_attempts:
+            from datetime import timedelta
+
+            attempt.locked_until = timezone.now() + timedelta(minutes=lockout_minutes)
+            cache.set(f"login_lock:{email}", attempt.locked_until, lockout_minutes * 60)
+            logger.warning("Account locked: %s after %d attempts", email, attempt.attempts)
+
+        attempt.save()
+
+    @staticmethod
+    def clear_failed_attempts(email: str) -> None:
+        """Clear failed login attempts on successful login."""
+        LoginAttempt.objects.filter(email=email.lower()).delete()
+        cache.delete(f"login_lock:{email}")
+
     # ── Registration ──────────────────────────────────────────────────────────
 
     @staticmethod

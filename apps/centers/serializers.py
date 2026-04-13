@@ -18,6 +18,7 @@ from .models import (
     PatientCase,
     ConsultationNote,
     TreatmentPlan,
+    Prescription,
     ChangeRequest,
 )
 
@@ -273,6 +274,9 @@ class ClinicianProfileSerializer(serializers.ModelSerializer):
             "fhc_name",
             "fhc_code",
             "specialization",
+            "downstream_expertise",
+            "onboarded",
+            "onboarded_at",
             "license_number",
             "years_of_experience",
             "bio",
@@ -286,6 +290,7 @@ class ClinicianProfileSerializer(serializers.ModelSerializer):
             "id",
             "is_verified",
             "verified_at",
+            "onboarded_at",
             "user_email",
             "user_full_name",
             "fhc_name",
@@ -308,6 +313,25 @@ class UpdateClinicianProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = ClinicianProfile
         fields = ["specialization", "license_number", "years_of_experience", "bio", "profile_photo"]
+
+
+from .constants import DOWNSTREAM_DISEASES
+
+
+class ClinicianOnboardingSerializer(serializers.Serializer):
+    """Clinician onboarding - sets specialization and downstream expertise."""
+
+    specialization = serializers.ChoiceField(
+        choices=ClinicianProfile.Specialization.choices,
+    )
+    downstream_expertise = serializers.ListField(
+        child=serializers.ChoiceField(choices=list(DOWNSTREAM_DISEASES.keys())),
+        min_length=1,
+        max_length=10,
+    )
+    license_number = serializers.CharField(max_length=50, required=False, allow_blank=True)
+    years_of_experience = serializers.IntegerField(min_value=0, required=False, default=0)
+    bio = serializers.CharField(required=False, allow_blank=True)
 
 
 class CreateClinicianSerializer(serializers.Serializer):
@@ -772,6 +796,13 @@ class TreatmentPlanSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
         read_only_fields = ["id", "case", "clinician", "created_at", "updated_at"]
+
+
+class PrescriptionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Prescription
+        fields = ["id", "patient", "medications", "is_active", "created_at", "updated_at"]
+        read_only_fields = ["id", "clinician", "created_at", "updated_at"]
 
 
 class CreateTreatmentPlanSerializer(serializers.Serializer):

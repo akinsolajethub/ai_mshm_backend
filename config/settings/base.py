@@ -76,6 +76,15 @@ MIDDLEWARE = [
     "core.middleware.RequestLoggingMiddleware",
 ]
 
+# ── Security Settings ─────────────────────────────────────────────────
+SECURE_BROWSER_XSS_FILTER = True
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_SSL_REDIRECT = False  # Set True in production
+CSRF_COOKIE_SECURE = True
+SECURE_HSTS_SECONDS = 31536000  # 1 year
+SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+SECURE_HSTS_PRELOAD = True
+
 ROOT_URLCONF = "config.urls"
 ASGI_APPLICATION = "config.asgi.application"
 
@@ -118,6 +127,23 @@ AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
+
+# ── Password Hashing (Argon2 for stronger security) ─────────────────────
+PASSWORD_HASHERS = [
+    "django.contrib.auth.hashers.PBKDF2PasswordHasher",
+    "django.contrib.auth.hashers.PBKDF2SHA1PasswordHasher",
+    "django.contrib.auth.hashers.BCryptPasswordHasher",
+    "django.contrib.auth.hashers.MD5PasswordHasher",
+]
+
+# ── Auth Security ───────────────────────────────────────────────────────
+MAX_LOGIN_ATTEMPTS = 5
+LOGIN_LOCKOUT_DURATION_MINUTES = 15
+PASSWORD_RESET_EXPIRY_HOURS = 1  # Reduced from 2 for security
+EMAIL_VERIFICATION_EXPIRY_HOURS = 24
+SESSION_COOKIE_SECURE = True
+SESSION_COOKIE_HTTP_ONLY = True
+SESSION_COOKIE_SAMESITE = "strict"
 
 # ── Internationalisation ──────────────────────────────────────────────────────
 LANGUAGE_CODE = "en-us"
@@ -178,7 +204,7 @@ REST_FRAMEWORK = {
 
 # ── JWT ───────────────────────────────────────────────────────────────────────
 SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(hours=24),
+    "ACCESS_TOKEN_LIFETIME": timedelta(hours=1),  # Reduced from 24h for security
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
     "ROTATE_REFRESH_TOKENS": True,
     "BLACKLIST_AFTER_ROTATION": True,

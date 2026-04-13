@@ -93,6 +93,16 @@ from .views import (
     ClinicianCaseListView,
     ClinicianCaseDetailView,
     ClinicianProfileView,
+    ClinicianOnboardingView,
+    ClinicianTreatmentPlanView,
+    ClinicianTreatmentPlanDetailView,
+    ClinicianPrescriptionView,
+    ClinicianPrescriptionDetailView,
+    ClinicianMessageView,
+    ClinicianAppointmentView,
+    ClinicianLetterView,
+    ClinicianAnalyticsView,
+    ClinicianNotificationsListView,
     # Patient
     ChangeRequestListView,
     ChangeRequestDetailView,
@@ -192,6 +202,63 @@ urlpatterns = [
         name="clinician-case-detail",
     ),
     path("clinician/profile/", ClinicianProfileView.as_view(), name="clinician-profile"),
+    path("clinician/onboarding/", ClinicianOnboardingView.as_view(), name="clinician-onboarding"),
+    # Clinician Treatment Plans
+    path(
+        "clinician/treatment-plans/",
+        ClinicianTreatmentPlanView.as_view(),
+        name="clinician-treatment-plans",
+    ),
+    path(
+        "clinician/treatment-plans/<uuid:pk>/",
+        ClinicianTreatmentPlanDetailView.as_view(),
+        name="clinician-treatment-plan-detail",
+    ),
+    # Clinician Prescriptions
+    path(
+        "clinician/prescriptions/",
+        ClinicianPrescriptionView.as_view(),
+        name="clinician-prescriptions",
+    ),
+    path(
+        "clinician/prescriptions/<uuid:pk>/",
+        ClinicianPrescriptionDetailView.as_view(),
+        name="clinician-prescription-detail",
+    ),
+    # Clinician Communication
+    path(
+        "clinician/message/<uuid:patient_id>/",
+        ClinicianMessageView.as_view(),
+        name="clinician-message",
+    ),
+    path(
+        "clinician/appointment/<uuid:patient_id>/",
+        ClinicianAppointmentView.as_view(),
+        name="clinician-appointment",
+    ),
+    path(
+        "clinician/letter/<uuid:patient_id>/",
+        ClinicianLetterView.as_view(),
+        name="clinician-letter",
+    ),
+    # Clinician Analytics
+    path("clinician/analytics/", ClinicianAnalyticsView.as_view(), name="clinician-analytics"),
+    # Clinician Notifications/Communications
+    path(
+        "clinician/communications/",
+        ClinicianNotificationsListView.as_view(),
+        name="clinician-communications",
+    ),
+    path(
+        "clinician/communications/<uuid:pk>/read/",
+        ClinicianNotificationsListView.as_view(),
+        name="clinician-communications-read",
+    ),
+    path(
+        "clinician/communications/<uuid:pk>/archive/",
+        ClinicianNotificationsListView.as_view(),
+        name="clinician-communications-archive",
+    ),
     # ── Patient ───────────────────────────────────────────────────────────────
     path("change-request/", ChangeRequestListView.as_view(), name="change-request-list"),
     path(

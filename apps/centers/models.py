@@ -321,12 +321,37 @@ class ClinicianProfile(models.Model):
     """
 
     class Specialization(models.TextChoices):
+        # Clinical Specialties
         GENERAL_PRACTICE = "general_practice", "General Practice"
-        OBSTETRICS_GYNAE = "obstetrics_gynae", "Obstetrics & Gynaecology"
-        ENDOCRINOLOGY = "endocrinology", "Endocrinology"
-        CARDIOLOGY = "cardiology", "Cardiology"
+        FAMILY_MEDICINE = "family_medicine", "Family Medicine"
         INTERNAL_MEDICINE = "internal_medicine", "Internal Medicine"
-        REPRODUCTIVE_HEALTH = "reproductive_health", "Reproductive Health"
+        PREVENTIVE_MEDICINE = "preventive_medicine", "Preventive Medicine"
+        OBSTETRICS_GYNAE = "obstetrics_gynae", "Obstetrics & Gynaecology"
+        REPRODUCTIVE_ENDOCRINOLOGY = (
+            "reproductive_endocrinology",
+            "Reproductive Endocrinology & Infertility",
+        )
+        GYNECOLOGIC_ONCOLOGY = "gynecologic_oncology", "Gynecologic Oncology"
+        ENDOCRINOLOGY = "endocrinology", "Endocrinology"
+        DIABETOLOGY = "diabetology", "Diabetology"
+        CARDIOLOGY = "cardiology", "Cardiology"
+        HYPERTENSION = "hypertension", "Hypertension & Vascular Medicine"
+        OBESITY_MEDICINE = "obesity_medicine", "Obesity Medicine"
+        BEHAVIORAL_MEDICINE = "behavioral_medicine", "Behavioral Medicine"
+        GASTROENTEROLOGY = "gastroenterology", "Gastroenterology"
+        HEPATOLOGY = "hepatology", "Hepatology"
+        SLEEP_MEDICINE = "sleep_medicine", "Sleep Medicine"
+        PULMONOLOGY = "pulmonology", "Pulmonology"
+        ENT = "ent", "ENT"
+        MATERNAL_FETAL_MEDICINE = "maternal_fetal_medicine", "Maternal-Fetal Medicine"
+        ADOLESCENT_MEDICINE = "adolescent_medicine", "Adolescent Medicine"
+        PSYCHIATRY = "psychiatry", "Psychiatry"
+        CLINICAL_PSYCHOLOGY = "clinical_psychology", "Clinical Psychology"
+        COMMUNITY_MENTAL_HEALTH = "community_mental_health", "Community Mental Health"
+        DERMATOLOGY = "dermatology", "Dermatology"
+        NUTRITION = "nutrition", "Nutrition & Dietetics"
+        COMMUNITY_HEALTH = "community_health", "Community Health"
+        PUBLIC_HEALTH = "public_health", "Public Health & Epidemiology"
         MIDWIFERY = "midwifery", "Midwifery"
         NURSING = "nursing", "Nursing"
         OTHER = "other", "Other"
@@ -345,10 +370,20 @@ class ClinicianProfile(models.Model):
         related_name="clinicians",
     )
     specialization = models.CharField(
-        max_length=30,
+        max_length=40,
         choices=Specialization.choices,
         default=Specialization.GENERAL_PRACTICE,
     )
+    # Multi-select downstream disease expertise for risk routing
+    downstream_expertise = models.JSONField(
+        default=list,
+        help_text="List of downstream diseases this clinician can manage",
+    )
+    onboarded = models.BooleanField(
+        default=False,
+        help_text="Whether clinician has completed onboarding",
+    )
+    onboarded_at = models.DateTimeField(null=True, blank=True)
     license_number = models.CharField(max_length=50, blank=True)
     years_of_experience = models.PositiveSmallIntegerField(default=0)
     bio = models.TextField(blank=True)
@@ -685,7 +720,24 @@ class TreatmentPlan(models.Model):
         return f"Plan({self.case.patient.email} | {self.title} | {self.created_at.date()})"
 
 
-# ── Change Request ───────────────────────────────────────────��────────────────
+class Prescription(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    clinician = models.ForeignKey(
+        ClinicianProfile, on_delete=models.CASCADE, related_name="prescriptions"
+    )
+    patient = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="prescriptions"
+    )
+    medications = models.JSONField(default=list)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Prescription({self.clinician.user.full_name} -> {self.patient.email})"
 
 
 class ChangeRequest(models.Model):

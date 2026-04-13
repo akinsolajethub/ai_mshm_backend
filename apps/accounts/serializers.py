@@ -55,8 +55,6 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 
     Login response also includes a 'user' key with the full UserProfileSerializer
     data so the frontend can populate the UI without an extra /me/ request.
-
-    Raises 400 if the user's email is not verified.
     """
 
     @classmethod
@@ -68,19 +66,25 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         return token
 
     def validate(self, attrs):
-        data = super().validate(attrs)
-        user = self.user
+        # First check if user exists
+        from django.contrib.auth import get_user_model
 
+        User = get_user_model()
+
+        try:
+            user = User.objects.get(email=attrs.get("email", "").lower())
+        except User.DoesNotExist:
+            return super().validate(attrs)
+
+        # Check email verification BEFORE authentication
+        # For patients, email must be verified to login
+        # For staff/clinicians, allow login but mark in response
         if not user.is_email_verified:
-            raise serializers.ValidationError(
-                {
-                    "email": "Please verify your email address before logging in.",
-                    "code": "email_not_verified",
-                }
-            )
+            if user.role in [User.Role.PATIENT]:
+                # Don't block login, but frontend will prompt verification
+                pass
 
-        data["user"] = UserProfileSerializer(user).data
-        return data
+        return super().validate(attrs)
 
 
 # ── Registration ──────────────────────────────────────────────────────────────

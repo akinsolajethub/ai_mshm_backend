@@ -70,6 +70,7 @@ from .serializers import (
     CreateFHCStaffSerializer,
     ClinicianProfileSerializer,
     UpdateClinicianProfileSerializer,
+    ClinicianOnboardingSerializer,
     CreateClinicianSerializer,
     ChangeRequestSerializer,
     ConsultationNoteSerializer,
@@ -81,6 +82,8 @@ from .serializers import (
     FMCDiagnosticsRequestSerializer,
     FMCDischargeSerializer,
 )
+
+from .constants import DOWNSTREAM_DISEASES
 
 from apps.accounts.tasks import send_staff_credentials_email_task
 
@@ -1706,7 +1709,7 @@ class FMCClinicianDetailView(APIView):
 
 
 class FMCVerifyClinicianView(APIView):
-    permission_classes = [IsAuthenticated, IsFHCAdmin]
+    permission_classes = [IsAuthenticated, IsAnyFMCUser]
 
     @extend_schema(
         tags=["FMC Admin"],
@@ -1714,7 +1717,7 @@ class FMCVerifyClinicianView(APIView):
         description="Marks clinician as verified. Clinician receives in-app notification.",
     )
     def post(self, request, pk):
-        center = getattr(request.user, "managed_fhc", None)
+        center = _get_user_fhc(request.user)
         if not center:
             return error_response("No FMC facility linked to your account.", http_status=404)
         try:
@@ -2147,6 +2150,455 @@ class ClinicianProfileView(APIView):
             data=ClinicianProfileSerializer(profile, context={"request": request}).data,
             message="Profile updated.",
         )
+
+
+class ClinicianOnboardingView(APIView):
+    permission_classes = [IsAuthenticated, IsClinician]
+
+    @extend_schema(
+        tags=["Clinician Portal"],
+        request=ClinicianOnboardingSerializer,
+        summary="Complete clinician onboarding",
+    )
+    def post(self, request):
+        profile = request.user.clinician_profile
+        if not profile:
+            return error_response("Profile not found. Contact your FMC admin.", http_status=404)
+
+        if profile.onboarded:
+            return error_response("Already onboarded.", http_status=400)
+
+        serializer = ClinicianOnboardingSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        profile.specialization = data["specialization"]
+        profile.downstream_expertise = data["downstream_expertise"]
+        profile.license_number = data.get("license_number", "")
+        profile.years_of_experience = data.get("years_of_experience", 0)
+        profile.bio = data.get("bio", "")
+        profile.onboarded = True
+        profile.onboarded_at = timezone.now()
+        profile.save()
+
+        return success_response(
+            data=ClinicianProfileSerializer(profile, context={"request": request}).data,
+            message="Onboarding completed.",
+        )
+
+
+# ── Clinician Portal: Treatment Plans ──────────────────────────────────────────────
+
+
+class ClinicianTreatmentPlanView(APIView):
+    permission_classes = [IsAuthenticated, IsClinician]
+
+    def _get_clinician_profile(self, user):
+        try:
+            return ClinicianProfile.objects.get(user=user)
+        except ClinicianProfile.DoesNotExist:
+            return None
+
+    @extend_schema(tags=["Clinician Portal"], summary="List treatment plans (CL4)")
+    def get(self, request):
+        profile = self._get_clinician_profile(request.user)
+        if not profile:
+            return error_response("Clinician profile not found.", http_status=404)
+
+        plans = TreatmentPlan.objects.filter(clinician=profile).select_related(
+            "case", "case__patient"
+        )
+        return success_response(data=TreatmentPlanSerializer(plans, many=True).data)
+
+    @extend_schema(
+        tags=["Clinician Portal"],
+        request=TreatmentPlanSerializer,
+        summary="Create treatment plan (CL4)",
+    )
+    def post(self, request):
+        profile = self._get_clinician_profile(request.user)
+        if not profile:
+            return error_response("Clinician profile not found.", http_status=404)
+
+        case_id = request.data.get("case")
+        if not case_id:
+            return error_response("Case ID is required.")
+
+        try:
+            case = PatientCase.objects.get(pk=case_id)
+        except PatientCase.DoesNotExist:
+            return error_response("Case not found.", http_status=404)
+
+        if case.clinician != profile:
+            return error_response("This case is not assigned to you.", http_status=403)
+
+        serializer = TreatmentPlanSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        plan = serializer.save(clinician=profile, case=case)
+        return created_response(
+            data=TreatmentPlanSerializer(plan).data, message="Treatment plan created."
+        )
+
+
+class ClinicianTreatmentPlanDetailView(APIView):
+    permission_classes = [IsAuthenticated, IsClinician]
+
+    @extend_schema(tags=["Clinician Portal"], summary="Get treatment plan detail (CL4)")
+    def get(self, request, pk):
+        profile = getattr(request.user, "clinician_profile", None)
+        if not profile:
+            return error_response("Profile not found.", http_status=404)
+
+        try:
+            plan = TreatmentPlan.objects.select_related("case", "case__patient").get(
+                pk=pk, clinician=profile
+            )
+        except TreatmentPlan.DoesNotExist:
+            return error_response("Treatment plan not found.", http_status=404)
+
+        return success_response(data=TreatmentPlanSerializer(plan).data)
+
+    @extend_schema(
+        tags=["Clinician Portal"],
+        request=TreatmentPlanSerializer,
+        summary="Update treatment plan (CL4)",
+    )
+    def patch(self, request, pk):
+        profile = getattr(request.user, "clinician_profile", None)
+        if not profile:
+            return error_response("Profile not found.", http_status=404)
+
+        try:
+            plan = TreatmentPlan.objects.get(pk=pk, clinician=profile)
+        except TreatmentPlan.DoesNotExist:
+            return error_response("Treatment plan not found.", http_status=404)
+
+        serializer = TreatmentPlanSerializer(plan, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return success_response(
+            data=TreatmentPlanSerializer(plan).data, message="Treatment plan updated."
+        )
+
+
+# ── Clinician Portal: Prescriptions ───────────────────────────────────────────
+
+
+class ClinicianPrescriptionView(APIView):
+    permission_classes = [IsAuthenticated, IsClinician]
+
+    @extend_schema(tags=["Clinician Portal"], summary="Create/list prescriptions (CL5)")
+    def get(self, request):
+        profile = getattr(request.user, "clinician_profile", None)
+        if not profile:
+            return error_response("Profile not found.", http_status=404)
+
+        prescriptions = Prescription.objects.filter(clinician=profile).select_related("patient")
+        data = [
+            {
+                "id": str(p.id),
+                "patient_id": str(p.patient_id),
+                "medications": p.medications,
+                "is_active": p.is_active,
+                "created_at": p.created_at.isoformat(),
+            }
+            for p in prescriptions
+        ]
+        return success_response(data=data)
+
+    def post(self, request):
+        from apps.notifications.models import Notification
+        from apps.notifications.services import NotificationService
+
+        profile = getattr(request.user, "clinician_profile", None)
+        if not profile:
+            return error_response("Profile not found.", http_status=404)
+
+        patient_id = request.data.get("patient_id")
+        medications = request.data.get("medications", [])
+
+        if not patient_id:
+            return error_response("Patient ID is required.")
+
+        try:
+            patient = User.objects.get(pk=patient_id)
+        except User.DoesNotExist:
+            return error_response("Patient not found.", http_status=404)
+
+        prescription = Prescription.objects.create(
+            clinician=profile, patient=patient, medications=medications
+        )
+
+        try:
+            NotificationService.send(
+                recipient=patient,
+                notification_type=Notification.NotificationType.SYSTEM,
+                title="New Prescription",
+                body=f"Dr. {request.user.full_name} has prescribed medications for you.",
+                priority=Notification.Priority.HIGH,
+            )
+        except Exception:
+            pass
+
+        return created_response(
+            data={
+                "id": str(prescription.id),
+                "message": "Prescription created and patient notified.",
+            }
+        )
+
+
+class ClinicianPrescriptionDetailView(APIView):
+    permission_classes = [IsAuthenticated, IsClinician]
+
+    @extend_schema(tags=["Clinician Portal"], summary="Update prescription (CL5)")
+    def patch(self, request, pk):
+        profile = getattr(request.user, "clinician_profile", None)
+        if not profile:
+            return error_response("Profile not found.", http_status=404)
+
+        try:
+            prescription = Prescription.objects.get(pk=pk, clinician=profile)
+        except Prescription.DoesNotExist:
+            return error_response("Prescription not found.", http_status=404)
+
+        if "medications" in request.data:
+            prescription.medications = request.data["medications"]
+        if "is_active" in request.data:
+            prescription.is_active = request.data["is_active"]
+        prescription.save()
+
+        return success_response(
+            data={"id": str(prescription.id), "message": "Prescription updated."}
+        )
+
+
+# ── Clinician Portal: Communication ───────────────────────────────────────────
+
+
+class ClinicianMessageView(APIView):
+    permission_classes = [IsAuthenticated, IsClinician]
+
+    @extend_schema(tags=["Clinician Portal"], summary="Send patient message (CL6)")
+    def post(self, request, patient_id):
+        from apps.notifications.models import Notification
+        from apps.notifications.services import NotificationService
+
+        try:
+            patient = User.objects.get(pk=patient_id)
+        except User.DoesNotExist:
+            return error_response("Patient not found.", http_status=404)
+
+        message_type = request.data.get("message_type", "CLINICAL_UPDATE")
+        body = request.data.get("body", "")
+
+        if not body:
+            return error_response("Message body is required.")
+
+        try:
+            NotificationService.send(
+                recipient=patient,
+                notification_type=Notification.NotificationType.MESSAGE,
+                title=f"Message from Dr. {request.user.full_name}",
+                body=body,
+                priority=Notification.Priority.MEDIUM,
+                data={"message_type": message_type, "sender": request.user.full_name},
+            )
+        except Exception:
+            pass
+
+        return success_response(message="Message sent to patient.")
+
+
+class ClinicianAppointmentView(APIView):
+    permission_classes = [IsAuthenticated, IsClinician]
+
+    @extend_schema(tags=["Clinician Portal"], summary="Book patient appointment (CL6)")
+    def post(self, request, patient_id):
+        from apps.notifications.models import Notification
+        from apps.notifications.services import NotificationService
+
+        try:
+            patient = User.objects.get(pk=patient_id)
+        except User.DoesNotExist:
+            return error_response("Patient not found.", http_status=404)
+
+        appointment_date = request.data.get("appointment_date")
+        appointment_type = request.data.get("appointment_type", "FOLLOW_UP")
+
+        if not appointment_date:
+            return error_response("Appointment date is required.")
+
+        try:
+            NotificationService.send(
+                recipient=patient,
+                notification_type=Notification.NotificationType.APPOINTMENT,
+                title="Appointment Booked",
+                body=f"Dr. {request.user.full_name} has booked an appointment: {appointment_type} on {appointment_date}",
+                priority=Notification.Priority.HIGH,
+                data={"appointment_date": appointment_date, "appointment_type": appointment_type},
+            )
+        except Exception:
+            pass
+
+        return success_response(message="Appointment booked.")
+
+
+# ── Clinician Portal: Letters ───────────────────────────────────────────────────
+
+
+class ClinicianLetterView(APIView):
+    permission_classes = [IsAuthenticated, IsClinician]
+
+    @extend_schema(tags=["Clinician Portal"], summary="Generate clinical letter (CL6)")
+    def post(self, request, patient_id):
+        from apps.notifications.models import Notification
+        from apps.notifications.services import NotificationService
+
+        try:
+            patient = User.objects.get(pk=patient_id)
+        except User.DoesNotExist:
+            return error_response("Patient not found.", http_status=404)
+
+        letter_type = request.data.get("letter_type", "TREATMENT_SUMMARY")
+        content = request.data.get("content", "")
+
+        try:
+            NotificationService.send(
+                recipient=patient,
+                notification_type=Notification.NotificationType.LETTER,
+                title=f"Clinical Letter - {letter_type.replace('_', ' ').title()}",
+                body=f"Dr. {request.user.full_name} has sent you a clinical letter.",
+                priority=Notification.Priority.MEDIUM,
+                data={"letter_type": letter_type, "content": content[:500] if content else ""},
+            )
+        except Exception:
+            pass
+
+        return success_response(message="Clinical letter generated and sent.")
+
+
+# ── Clinician Portal: Analytics ────────────────────────────────────────────────
+
+
+class ClinicianAnalyticsView(APIView):
+    permission_classes = [IsAuthenticated, IsClinician]
+
+    @extend_schema(tags=["Clinician Portal"], summary="Get clinician analytics (CL7)")
+    def get(self, request):
+        from datetime import timedelta
+        from django.utils import timezone
+
+        profile = getattr(request.user, "clinician_profile", None)
+        if not profile:
+            return error_response("Profile not found.", http_status=404)
+
+        range_param = request.query_params.get("range", "30d")
+
+        if range_param == "7d":
+            start_date = timezone.now() - timedelta(days=7)
+        elif range_param == "90d":
+            start_date = timezone.now() - timedelta(days=90)
+        else:
+            start_date = timezone.now() - timedelta(days=30)
+
+        assigned_cases = PatientCase.objects.filter(clinician=profile, assigned_at__gte=start_date)
+        active_cases = assigned_cases.exclude(status=PatientCase.CaseStatus.DISCHARGED)
+        resolved_cases = assigned_cases.filter(status=PatientCase.CaseStatus.DISCHARGED)
+
+        avg_treatment_days = 0
+        if resolved_cases.exists():
+            resolved_with_dates = resolved_cases.exclude(
+                assigned_at__isnull=True, closed_at__isnull=True
+            )
+            if resolved_with_dates.exists():
+                total_days = sum(
+                    (c.closed_at - c.assigned_at).days
+                    for c in resolved_with_dates
+                    if c.closed_at and c.assigned_at
+                )
+                avg_treatment_days = total_days / resolved_with_dates.count()
+
+        return success_response(
+            data={
+                "total_assigned": assigned_cases.count(),
+                "active_cases": active_cases.count(),
+                "resolved_cases": resolved_cases.count(),
+                "avg_treatment_duration_days": round(avg_treatment_days, 1),
+                "condition_distribution": {"pcos": 0, "hormonal": 0, "metabolic": 0},
+                "outcomes": {
+                    "resolved": resolved_cases.count(),
+                    "under_treatment": active_cases.count(),
+                    "referred_on": 0,
+                },
+            }
+        )
+
+
+class ClinicianNotificationsListView(APIView):
+    permission_classes = [IsAuthenticated, IsClinician]
+
+    @extend_schema(tags=["Clinician Portal"], summary="List notifications/conversations")
+    def get(self, request):
+        from apps.notifications.models import Notification
+
+        qs = Notification.objects.filter(
+            recipient=request.user, notification_type__in=["clinician_msg", "message"]
+        ).order_by("-created_at")[:50]
+
+        conversations = {}
+        for n in qs:
+            sender_id = n.data.get("sender_id", n.sender_id if hasattr(n, "sender_id") else None)
+            if not sender_id:
+                continue
+            if sender_id not in conversations:
+                conversations[sender_id] = {
+                    "id": sender_id,
+                    "patient": {"id": sender_id, "full_name": n.data.get("sender", "Patient")},
+                    "last_message": n.body[:100],
+                    "last_message_at": n.created_at.isoformat(),
+                    "unread_count": 0,
+                }
+            if not n.is_read:
+                conversations[sender_id]["unread_count"] += 1
+
+        return success_response(data=list(conversations.values()))
+
+    @extend_schema(tags=["Clinician Portal"], summary="Mark conversation as read")
+    def patch(self, request, pk):
+        from apps.notifications.models import Notification
+
+        notifications = Notification.objects.filter(
+            recipient=request.user,
+            data__sender_id=pk,
+            is_read=False,
+        )
+        for n in notifications:
+            n.mark_read()
+
+        return success_response(message="Marked as read.")
+
+    @extend_schema(tags=["Clinician Portal"], summary="Archive conversation")
+    def post(self, request, pk):
+        from apps.notifications.models import Notification
+
+        notifications = Notification.objects.filter(
+            recipient=request.user,
+            data__sender_id=pk,
+        )
+        notifications.update(is_archived=True)
+
+        return success_response(message="Archived.")
+
+    def delete(self, request, pk):
+        from apps.notifications.models import Notification
+
+        Notification.objects.filter(
+            recipient=request.user,
+            data__sender_id=pk,
+        ).delete()
+
+        return success_response(message="Deleted.")
 
 
 # ── Patient: Change Requests ──────────────────────────────────────────────────

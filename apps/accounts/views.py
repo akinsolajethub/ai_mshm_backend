@@ -6,18 +6,22 @@ All auth endpoints. Views are intentionally thin — logic lives in services.py.
 
 import logging
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from rest_framework import status
+from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
-from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+from rest_framework_simplejwt.views import TokenRefreshView, TokenObtainPairView
 from rest_framework_simplejwt.tokens import RefreshToken
 from drf_spectacular.utils import extend_schema, OpenApiResponse
 
 from core.responses import success_response, created_response, error_response
 
 logger = logging.getLogger(__name__)
+
+from .services import AuthService
 from .serializers import (
     RegisterSerializer,
     UserProfileSerializer,
@@ -30,7 +34,6 @@ from .serializers import (
     LogoutSerializer,
     UpdateProfileSerializer,
 )
-from .services import AuthService
 
 User = get_user_model()
 
@@ -64,8 +67,7 @@ class RegisterView(APIView):
 
 class LoginView(TokenObtainPairView):
     """
-    Returns access + refresh tokens along with user profile.
-    Inherits from SimpleJWT — custom payload added via CustomTokenObtainPairSerializer.
+    Custom login view that wraps SimpleJWT with rate limiting and proper response format.
     """
 
     throttle_classes = [ScopedRateThrottle]
@@ -73,12 +75,63 @@ class LoginView(TokenObtainPairView):
 
     @extend_schema(tags=["Auth"], summary="Login – obtain JWT token pair")
     def post(self, request, *args, **kwargs):
+        # Get the original response from SimpleJWT
         response = super().post(request, *args, **kwargs)
+
         if response.status_code == 200:
-            return success_response(
-                data=response.data,
-                message="Login successful.",
-            )
+            # Extract user from token
+            from django.contrib.auth import get_user_model
+
+            User = get_user_model()
+
+            # Get user data
+            email = request.data.get("email", "").lower()
+            try:
+                user = User.objects.get(email=email)
+            except User.DoesNotExist:
+                user = None
+
+            if user:
+                # Clear failed attempts on successful login (skip in DEBUG)
+                if not settings.DEBUG:
+                    x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
+                    ip_address = (
+                        x_forwarded_for.split(",")[0].strip()
+                        if x_forwarded_for
+                        else request.META.get("REMOTE_ADDR", "0.0.0.0")
+                    )
+                    AuthService.clear_failed_attempts(email)
+
+                # Add user data to response
+                user_data = UserProfileSerializer(user, context={"request": request}).data
+                original_data = response.data
+
+                # Wrap in our response format
+                return Response(
+                    {
+                        "status": "success",
+                        "message": "Login successful.",
+                        "data": {
+                            "access": original_data.get("access"),
+                            "refresh": original_data.get("refresh"),
+                            "user": user_data,
+                        },
+                    },
+                    status=status.HTTP_200_OK,
+                )
+
+        # Record failed attempt (skip in DEBUG)
+        if not settings.DEBUG:
+            email = request.data.get("email", "").lower()
+            if email:
+                x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
+                ip_address = (
+                    x_forwarded_for.split(",")[0].strip()
+                    if x_forwarded_for
+                    else request.META.get("REMOTE_ADDR", "0.0.0.0")
+                )
+                AuthService.record_failed_attempt(email, ip_address)
+
         return response
 
 
