@@ -1663,6 +1663,23 @@ class FMCClinicianListView(APIView):
             years_of_experience=data.get("years_of_experience", 0),
             bio=data.get("bio", ""),
         )
+
+        # Send email with credentials
+        try:
+            from apps.accounts.tasks import send_staff_credentials_email_task
+            from core.utils.celery_helpers import run_task
+
+            run_task(
+                send_staff_credentials_email_task,
+                user_name=user.full_name,
+                user_email=user.email,
+                temp_password=temp_password,
+                facility_name=center.name,
+                role="Clinician",
+            )
+        except Exception as e:
+            logger.warning(f"Failed to send clinician credentials email: {e}")
+
         return created_response(
             data=ClinicianProfileSerializer(profile, context={"request": request}).data,
             message=f"Clinician account created for {user.email}. Pending verification.",
@@ -1719,13 +1736,20 @@ class FMCVerifyClinicianView(APIView):
     def post(self, request, pk):
         center = _get_user_fhc(request.user)
         if not center:
-            return error_response("No FMC facility linked to your account.", http_status=404)
+            return error_response("No FMC facility linked to your account.", http_status=403)
+
         try:
-            profile = ClinicianProfile.objects.select_related("user").get(pk=pk, fhc=center)
+            profile = ClinicianProfile.objects.select_related("user").get(pk=pk)
         except ClinicianProfile.DoesNotExist:
             return error_response("Clinician not found.", http_status=404)
+
+        # Verify the clinician belongs to this FMC
+        if profile.fhc != center:
+            return error_response("Clinician not found.", http_status=404)
+
         if profile.is_verified:
             return error_response("This clinician is already verified.")
+
         profile.is_verified = True
         profile.verified_at = timezone.now()
         profile.save(update_fields=["is_verified", "verified_at"])
