@@ -1776,6 +1776,97 @@ class FMCVerifyClinicianView(APIView):
         )
 
 
+class FMCDeactivateClinicianView(APIView):
+    permission_classes = [IsAuthenticated, IsFHCAdmin]
+
+    @extend_schema(
+        tags=["FMC Admin"],
+        summary="Deactivate a clinician account",
+        description="Deactivates clinician account. They cannot log in or access patients.",
+    )
+    def post(self, request, pk):
+        center = getattr(request.user, "managed_fhc", None)
+        if not center:
+            return error_response("No FMC facility linked to your account.", http_status=403)
+
+        try:
+            profile = ClinicianProfile.objects.select_related("user").get(pk=pk, fhc=center)
+        except ClinicianProfile.DoesNotExist:
+            return error_response("Clinician not found.", http_status=404)
+
+        # Deactivate the user account
+        profile.user.is_active = False
+        profile.user.save(update_fields=["is_active"])
+
+        # Send notification
+        try:
+            from apps.notifications.models import Notification
+            from apps.notifications.services import NotificationService
+
+            NotificationService.send(
+                recipient=profile.user,
+                notification_type=Notification.NotificationType.SYSTEM,
+                title="Your clinician account has been deactivated",
+                body=(
+                    f"Your account at {center.name} has been deactivated. "
+                    "Please contact your administrator for more information."
+                ),
+                priority=Notification.Priority.HIGH,
+            )
+        except Exception:
+            pass
+
+        return success_response(
+            data=ClinicianProfileSerializer(profile, context={"request": request}).data,
+            message=f"Dr. {profile.user.full_name} has been deactivated.",
+        )
+
+
+class FMCActivateClinicianView(APIView):
+    permission_classes = [IsAuthenticated, IsFHCAdmin]
+
+    @extend_schema(
+        tags=["FMC Admin"],
+        summary="Reactivate a clinician account",
+        description="Reactivates a previously deactivated clinician account.",
+    )
+    def post(self, request, pk):
+        center = getattr(request.user, "managed_fhc", None)
+        if not center:
+            return error_response("No FMC facility linked to your account.", http_status=403)
+
+        try:
+            profile = ClinicianProfile.objects.select_related("user").get(pk=pk, fhc=center)
+        except ClinicianProfile.DoesNotExist:
+            return error_response("Clinician not found.", http_status=404)
+
+        # Reactivate the user account
+        profile.user.is_active = True
+        profile.user.save(update_fields=["is_active"])
+
+        # Send notification
+        try:
+            from apps.notifications.models import Notification
+            from apps.notifications.services import NotificationService
+
+            NotificationService.send(
+                recipient=profile.user,
+                notification_type=Notification.NotificationType.SYSTEM,
+                title="Your clinician account has been reactivated",
+                body=(
+                    f"Your account at {center.name} has been reactivated. You can now log in again."
+                ),
+                priority=Notification.Priority.HIGH,
+            )
+        except Exception:
+            pass
+
+        return success_response(
+            data=ClinicianProfileSerializer(profile, context={"request": request}).data,
+            message=f"Dr. {profile.user.full_name} has been reactivated.",
+        )
+
+
 # ── FMC Portal: Case Queue ────────────────────────────────────────────────────
 
 

@@ -262,6 +262,7 @@ class ClinicianProfileSerializer(serializers.ModelSerializer):
     fhc_code = serializers.CharField(source="fhc.code", read_only=True)
     user_email = serializers.EmailField(source="user.email", read_only=True)
     user_full_name = serializers.CharField(source="user.full_name", read_only=True)
+    user_is_active = serializers.BooleanField(source="user.is_active", read_only=True)
     profile_photo_url = serializers.SerializerMethodField()
 
     class Meta:
@@ -270,6 +271,7 @@ class ClinicianProfileSerializer(serializers.ModelSerializer):
             "id",
             "user_email",
             "user_full_name",
+            "user_is_active",
             "fhc",
             "fhc_name",
             "fhc_code",

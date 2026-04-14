@@ -89,6 +89,8 @@ from .views import (
     FMCClinicianListView,
     FMCClinicianDetailView,
     FMCVerifyClinicianView,
+    FMCDeactivateClinicianView,
+    FMCActivateClinicianView,
     # Clinician
     ClinicianCaseListView,
     ClinicianCaseDetailView,
@@ -193,6 +195,16 @@ urlpatterns = [
         "fmc/clinicians/<uuid:pk>/verify/",
         FMCVerifyClinicianView.as_view(),
         name="fmc-clinician-verify",
+    ),
+    path(
+        "fmc/clinicians/<uuid:pk>/deactivate/",
+        FMCDeactivateClinicianView.as_view(),
+        name="fmc-clinician-deactivate",
+    ),
+    path(
+        "fmc/clinicians/<uuid:pk>/activate/",
+        FMCActivateClinicianView.as_view(),
+        name="fmc-clinician-activate",
     ),
     # ── Clinician ─────────────────────────────────────────────────────────────
     path("clinician/cases/", ClinicianCaseListView.as_view(), name="clinician-case-list"),
