@@ -5,6 +5,7 @@ SECURE DEPLOYMENT CONFIGURATION
 
 import os
 import logging
+from datetime import timedelta
 from .base import *  # noqa
 import sentry_sdk
 from decouple import config
@@ -21,13 +22,33 @@ SECURE_HSTS_SECONDS = 31536000  # 1 year
 SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 SECURE_HSTS_PRELOAD = True
 
-# ── CORS (Restrict for production) ─────────────────────────────
-# Parse comma-separated origins from env variable
-_prod_origins = os.environ.get("CORS_ALLOWED_ORIGINS", "").split(",")
-CORS_ALLOWED_ORIGINS = [origin.strip() for origin in _prod_origins if origin.strip()]
+# ── Session Security ────────────────────────────────────────────────
+SESSION_COOKIE_SECURE = True
+SESSION_COOKIE_HTTP_ONLY = True
+SESSION_COOKIE_SAMESITE = "strict"
+SESSION_COOKIE_AGE = 1800  # 30 minutes
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
+
+# CSRF Security
+CSRF_COOKIE_SECURE = True
+CSRF_COOKIE_SAMESITE = "strict"
+
+# Clickjacking Protection
+X_FRAME_OPTIONS = "DENY"
+
+# Additional Security Headers
+SECURE_BROWSER_XSS_FILTER = True
+SECURE_CONTENT_TYPE_NOSNIFF = True
+
+# ── CORS (Whitelist only in production) ───────────────────────────
+CORS_ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in os.environ.get("CORS_ALLOWED_ORIGINS", "").split(",")
+    if origin.strip()
+]
 
 CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOW_ALL_ORIGINS = False  # Disable - use whitelist only
+CORS_ALLOW_ALL_ORIGINS = False  # Disabled - use whitelist only
 CORS_PREFLIGHT_MAX_AGE = 3600  # 1 hour
 
 CORS_ALLOW_HEADERS = [
@@ -51,7 +72,7 @@ CORS_ALLOW_METHODS = [
     "PUT",
 ]
 
-# ── CACHING (Redis for production)─────────────────────────────
+# ── CACHING (Redis for production)──────────────────────────────────
 CACHES = {
     "default": {
         "BACKEND": "django.core.cache.backends.redis.RedisCache",
@@ -59,64 +80,37 @@ CACHES = {
     }
 }
 
-CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOW_ALL_ORIGINS = False  # Enforce whitelist in production
+# ── JWT Settings (Shorter sessions for security) ────────────────
+from datetime import timedelta as td
 
-CORS_ALLOWED_ORIGINS = os.environ.get("CORS_ALLOWED_ORIGINS", "").split(",")
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": td(minutes=30),  # 30 minutes
+    "REFRESH_TOKEN_LIFETIME": td(hours=24),  # 24 hours
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True,
+    "UPDATE_LAST_LOGIN": True,
+    "AUTH_HEADER_TYPES": ("Bearer",),
+}
 
-CORS_ALLOW_HEADERS = [
-    "accept",
-    "accept-encoding",
-    "authorization",
-    "content-type",
-    "dnt",
-    "origin",
-    "user-agent",
-    "x-csrftoken",
-    "x-requested-with",
-]
+# ── Database Security ─────────────────────────────────────────────
+# Database should be accessed via internal network only
+# Ensure DATABASE_URL uses internal network or private subnet
 
-CORS_ALLOW_METHODS = [
-    "DELETE",
-    "GET",
-    "OPTIONS",
-    "PATCH",
-    "POST",
-    "PUT",
-]
-
-# â”€â”€ Email (Resend via django-anymail) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ── Email (Resend via django-anymail) ────────────────────────────
 EMAIL_BACKEND = "anymail.backends.resend.EmailBackend"
-
 ANYMAIL = {
     "RESEND_API_KEY": os.environ.get("RESEND_API_KEY"),
 }
-
 DEFAULT_FROM_EMAIL = os.environ.get(
     "DEFAULT_FROM_EMAIL",
     "AI-MSHM <noreply@devalyze.space>",
 )
 SERVER_EMAIL = DEFAULT_FROM_EMAIL
 
-# â”€â”€ Security hardening â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
-SECURE_SSL_REDIRECT = False
-SECURE_BROWSER_XSS_FILTER = True
-SECURE_CONTENT_TYPE_NOSNIFF = True
-SECURE_HSTS_SECONDS = 31536000
-SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-SECURE_HSTS_PRELOAD = True
-SESSION_COOKIE_SECURE = True
-CSRF_COOKIE_SECURE = True
-X_FRAME_OPTIONS = "DENY"
-
-# â”€â”€ Channel Layers (WebSocket support) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ── Channel Layers (WebSocket support) ───────────────────────────
 USE_IN_MEMORY_CHANNELS = config("USE_IN_MEMORY_CHANNELS", default="False") == "True"
 _redis_raw = os.environ.get("REDIS_URL", "")
 
-# REDIS_URL on Render must be set to:
-# rediss://<your-upstash-url>:6379?ssl_cert_reqs=CERT_NONE
-# (append ?ssl_cert_reqs=CERT_NONE to whatever the current value is)
 if _redis_raw.startswith("rediss://"):
     _redis_url = _redis_raw
     if "ssl_cert_reqs" not in _redis_url:
@@ -145,7 +139,7 @@ else:
 CELERY_BROKER_URL = _redis_url
 CELERY_RESULT_BACKEND = _redis_url
 
-# â”€â”€ Sentry error tracking â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ── Sentry error tracking ────────────────────────────────────────
 SENTRY_DSN = config("SENTRY_DSN", default="")
 if SENTRY_DSN:
     sentry_sdk.init(
@@ -154,15 +148,43 @@ if SENTRY_DSN:
         profiles_sample_rate=0.1,
     )
 
-# â”€â”€ Production logging â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ── Security Logging ─────────────────────────────────────────────
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
     "formatters": {
         "json": {"()": "pythonjsonlogger.jsonlogger.JsonFormatter"},
+        "verbose": {
+            "format": "{asctime} {levelname} {name} {message}",
+            "style": "{",
+        },
     },
     "handlers": {
         "console": {"class": "logging.StreamHandler", "formatter": "json"},
+        "security_file": {
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": os.path.join(BASE_DIR, "logs", "security.log"),
+            "maxBytes": 10485760,  # 10MB
+            "backupCount": 10,
+            "formatter": "verbose",
+        },
+    },
+    "loggers": {
+        "django.security": {
+            "handlers": ["security_file", "console"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "django.auth": {
+            "handlers": ["security_file", "console"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "apps.accounts": {
+            "handlers": ["security_file", "console"],
+            "level": "INFO",
+            "propagate": False,
+        },
     },
     "root": {"handlers": ["console"], "level": "WARNING"},
 }
