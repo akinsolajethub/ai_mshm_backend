@@ -10,7 +10,9 @@ import sentry_sdk
 from decouple import config
 
 DEBUG = False
-ALLOWED_HOSTS = config("ALLOWED_HOSTS", default="").split(",")
+ALLOWED_HOSTS = config(
+    "ALLOWED_HOSTS", default="ai-mshm-backend-d47t.onrender.com,ai-mshm-backend.onrender.com"
+).split(",")
 
 # ── HTTPS Enforcement ───────────────────────────────────────────
 SECURE_SSL_REDIRECT = True  # Enforce HTTPS
