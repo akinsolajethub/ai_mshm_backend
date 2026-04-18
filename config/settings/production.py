@@ -12,7 +12,8 @@ from decouple import config
 
 DEBUG = False
 ALLOWED_HOSTS = config(
-    "ALLOWED_HOSTS", default="ai-mshm-backend-d47t.onrender.com,ai-mshm-backend.onrender.com"
+    "ALLOWED_HOSTS",
+    default="ai-mshm-backend-d47t.onrender.com,ai-mshm-backend.onrender.com,localhost,127.0.0.1",
 ).split(",")
 
 # ── HTTPS Enforcement ───────────────────────────────────────────

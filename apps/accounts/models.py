@@ -89,17 +89,41 @@ class User(AbstractBaseUser, PermissionsMixin):
     """
 
     class Role(models.TextChoices):
+        # Direct to Consumer (Patients)
         PATIENT = "patient", "Patient"
+
+        # Government & Public Health
         CLINICIAN = "clinician", "Clinician / Doctor"
         HCC_STAFF = "hcc_staff", "PHC Staff"
         HCC_ADMIN = "hcc_admin", "PHC Admin"
+        STH_STAFF = "sth_staff", "State Hospital Staff"
+        STH_ADMIN = "sth_admin", "State Hospital Admin"
+        STTH_STAFF = "stth_staff", "State Teaching Hospital Staff"
+        STTH_ADMIN = "stth_admin", "State Teaching Hospital Admin"
         FHC_STAFF = "fhc_staff", "FMC Staff"
         FHC_ADMIN = "fhc_admin", "FMC Admin"
+        FTH_STAFF = "fth_staff", "Federal Teaching Hospital Staff"
+        FTH_ADMIN = "fth_admin", "Federal Teaching Hospital Admin"
+
+        # Health Insurance & HMOs
+        HMO_STAFF = "hmo_staff", "HMO Staff"
+        HMO_ADMIN = "hmo_admin", "HMO Admin"
+
+        # Private Healthcare
+        CLINIC_STAFF = "clinic_staff", "Clinic Staff"
+        CLINIC_ADMIN = "clinic_admin", "Clinic Admin"
+        PVT_STAFF = "pvt_staff", "Private Hospital Staff"
+        PVT_ADMIN = "pvt_admin", "Private Hospital Admin"
+        PTTH_STAFF = "ptth_staff", "Private Teaching Hospital Staff"
+        PTTH_ADMIN = "ptth_admin", "Private Teaching Hospital Admin"
+
+        # Platform Admin
         ADMIN = "admin", "Platform Admin"
 
     # ── Core identity ─────────────────────────────────────────────────────────
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     email = models.EmailField(unique=True, db_index=True)
+    unique_id = models.CharField(max_length=20, unique=True, null=True, blank=True, db_index=True)
     full_name = models.CharField(max_length=255)
     role = models.CharField(
         max_length=20,

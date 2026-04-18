@@ -459,7 +459,7 @@ class EnsembleWeightConfig(models.Model):
 
     @classmethod
     def get_default_weights(cls) -> dict:
-        """Return default weights if no config exists."""
+        """Return default weights for FEMALE patients."""
         return {
             "PCOS": {"symptom": 0.30, "menstrual": 0.35, "rppg": 0.20, "mood": 0.15},
             "CVD": {"symptom": 0.20, "menstrual": 0.20, "rppg": 0.40, "mood": 0.20},
@@ -470,6 +470,27 @@ class EnsembleWeightConfig(models.Model):
             "MentalHealth": {"symptom": 0.20, "menstrual": 0.15, "rppg": 0.25, "mood": 0.40},
             "Stroke": {"symptom": 0.20, "menstrual": 0.20, "rppg": 0.35, "mood": 0.25},
             "Endometrial": {"symptom": 0.30, "menstrual": 0.45, "rppg": 0.15, "mood": 0.10},
+        }
+
+    @classmethod
+    def get_male_weights(cls) -> dict:
+        """Return gender-specific weights for MALE patients."""
+        return {
+            # Male-specific: CVD, Metabolic, Prostate emphasized
+            "PCOS": {"symptom": 0.10, "menstrual": 0.0, "rppg": 0.45, "mood": 0.45},  # Lower for males
+            "CVD": {"symptom": 0.15, "menstrual": 0.0, "rppg": 0.55, "mood": 0.30},  # Higher CV focus
+            "T2D": {"symptom": 0.20, "menstrual": 0.0, "rppg": 0.50, "mood": 0.30},
+            "ProstateCancer": {"symptom": 0.35, "menstrual": 0.0, "rppg": 0.30, "mood": 0.35},  # NEW
+            "Infertility": {"symptom": 0.25, "menstrual": 0.0, "rppg": 0.45, "mood": 0.30},
+            "Prostatitis": {"symptom": 0.40, "menstrual": 0.0, "rppg": 0.30, "mood": 0.30},  # NEW
+            "Metabolic": {"symptom": 0.15, "menstrual": 0.0, "rppg": 0.55, "mood": 0.30},  # Higher for males
+            "Depression": {"symptom": 0.20, "menstrual": 0.0, "rppg": 0.30, "mood": 0.50},  # Mental health important
+            "ChronicStress": {"symptom": 0.15, "menstrual": 0.0, "rppg": 0.45, "mood": 0.40},  # NEW
+            "Stroke": {"symptom": 0.15, "menstrual": 0.0, "rppg": 0.55, "mood": 0.30},
+            # Keep female conditions with reduced weight
+            "Dysmenorrhea": {"symptom": 0.20, "menstrual": 0.05, "rppg": 0.35, "mood": 0.40},
+            "MentalHealth": {"symptom": 0.15, "menstrual": 0.0, "rppg": 0.30, "mood": 0.55},
+            "Endometrial": {"symptom": 0.15, "menstrual": 0.05, "rppg": 0.40, "mood": 0.40},
         }
 
     def get_weight_dict(self) -> dict:

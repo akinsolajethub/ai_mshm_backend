@@ -15,14 +15,15 @@ ONBOARDING PROFILE READ:
       (read-only, derived from PHC.escalates_to or state fallback)
       This is what the patient sees in their P9 profile screen as "Your FMC".
 """
+
 from rest_framework import serializers
 from .models import OnboardingProfile
 
 
 class Step1PersonalInfoSerializer(serializers.ModelSerializer):
     class Meta:
-        model  = OnboardingProfile
-        fields = ["full_name", "age", "ethnicity"]
+        model = OnboardingProfile
+        fields = ["full_name", "age", "ethnicity", "gender", "phone_number"]
 
     def validate_age(self, value):
         if value is not None and not (10 <= value <= 120):
@@ -34,7 +35,7 @@ class Step2PhysicalMeasurementsSerializer(serializers.ModelSerializer):
     bmi = serializers.FloatField(read_only=True)
 
     class Meta:
-        model  = OnboardingProfile
+        model = OnboardingProfile
         fields = ["height_cm", "weight_kg", "bmi"]
 
     def validate_height_cm(self, value):
@@ -50,7 +51,7 @@ class Step2PhysicalMeasurementsSerializer(serializers.ModelSerializer):
 
 class Step3SkinChangesSerializer(serializers.ModelSerializer):
     class Meta:
-        model  = OnboardingProfile
+        model = OnboardingProfile
         fields = ["has_skin_changes"]
 
     def validate_has_skin_changes(self, value):
@@ -61,7 +62,7 @@ class Step3SkinChangesSerializer(serializers.ModelSerializer):
 
 class Step4MenstrualHistorySerializer(serializers.ModelSerializer):
     class Meta:
-        model  = OnboardingProfile
+        model = OnboardingProfile
         fields = ["cycle_length_days", "periods_per_year", "cycle_regularity"]
 
     def validate_cycle_length_days(self, value):
@@ -77,7 +78,7 @@ class Step4MenstrualHistorySerializer(serializers.ModelSerializer):
 
 class Step5WearableSerializer(serializers.ModelSerializer):
     class Meta:
-        model  = OnboardingProfile
+        model = OnboardingProfile
         fields = ["selected_wearable"]
 
 
@@ -86,6 +87,7 @@ class Step6RppgSerializer(serializers.Serializer):
     Placeholder — the real rPPG pipeline will receive a video blob.
     For now we just flag the baseline as captured.
     """
+
     baseline_captured = serializers.BooleanField()
 
 
@@ -100,18 +102,19 @@ class Step7PHCRegistrationSerializer(serializers.ModelSerializer):
     registered_hcc_detail: returns the selected PHC's name, code, state, lga
     as a read-only nested object so the frontend can confirm the selection.
     """
+
     registered_hcc_detail = serializers.SerializerMethodField(
         help_text="Read-only. Returns the selected PHC's basic details after saving.",
     )
 
     class Meta:
-        model  = OnboardingProfile
+        model = OnboardingProfile
         fields = ["state", "lga", "registered_hcc", "registered_hcc_detail"]
         extra_kwargs = {
             "registered_hcc": {
-                "required":   False,
+                "required": False,
                 "allow_null": True,
-                "help_text":  "UUID of the selected PHC. Null if patient skips this step.",
+                "help_text": "UUID of the selected PHC. Null if patient skips this step.",
             },
             "state": {
                 "required": False,
@@ -128,11 +131,11 @@ class Step7PHCRegistrationSerializer(serializers.ModelSerializer):
             return None
         hcc = obj.registered_hcc
         return {
-            "id":    str(hcc.id),
-            "name":  hcc.name,
-            "code":  hcc.code,
+            "id": str(hcc.id),
+            "name": hcc.name,
+            "code": hcc.code,
             "state": hcc.state,
-            "lga":   hcc.lga,
+            "lga": hcc.lga,
         }
 
 
@@ -153,31 +156,48 @@ class OnboardingProfileSerializer(serializers.ModelSerializer):
     The patient CANNOT directly change the FMC — it is determined by their PHC.
     If they want to change their FMC, they must submit a ChangeRequest.
     """
-    bmi                   = serializers.FloatField(read_only=True)
+
+    bmi = serializers.FloatField(read_only=True)
     registered_hcc_detail = serializers.SerializerMethodField()
     escalation_fmc_detail = serializers.SerializerMethodField()
 
     class Meta:
-        model  = OnboardingProfile
+        model = OnboardingProfile
         fields = [
             # Steps 1–5
-            "full_name", "age", "ethnicity",
-            "height_cm", "weight_kg", "bmi",
+            "full_name",
+            "age",
+            "ethnicity",
+            "gender",
+            "phone_number",
+            "height_cm",
+            "weight_kg",
+            "bmi",
             "has_skin_changes",
-            "cycle_length_days", "periods_per_year", "cycle_regularity",
+            "cycle_length_days",
+            "periods_per_year",
+            "cycle_regularity",
             "selected_wearable",
             # Step 6
-            "rppg_baseline_captured", "rppg_captured_at",
+            "rppg_baseline_captured",
+            "rppg_captured_at",
             # Step 7 — PHC Registration
-            "state", "lga", "registered_hcc",
-            "registered_hcc_detail", "escalation_fmc_detail",
+            "state",
+            "lga",
+            "registered_hcc",
+            "registered_hcc_detail",
+            "escalation_fmc_detail",
             # Meta
-            "created_at", "updated_at",
+            "created_at",
+            "updated_at",
         ]
         read_only_fields = [
-            "bmi", "rppg_captured_at",
-            "registered_hcc_detail", "escalation_fmc_detail",
-            "created_at", "updated_at",
+            "bmi",
+            "rppg_captured_at",
+            "registered_hcc_detail",
+            "escalation_fmc_detail",
+            "created_at",
+            "updated_at",
         ]
 
     def get_registered_hcc_detail(self, obj):
@@ -190,11 +210,11 @@ class OnboardingProfileSerializer(serializers.ModelSerializer):
             return None
         hcc = obj.registered_hcc
         return {
-            "id":    str(hcc.id),
-            "name":  hcc.name,
-            "code":  hcc.code,
+            "id": str(hcc.id),
+            "name": hcc.name,
+            "code": hcc.code,
             "state": hcc.state,
-            "lga":   hcc.lga,
+            "lga": hcc.lga,
         }
 
     def get_escalation_fmc_detail(self, obj):
@@ -215,9 +235,9 @@ class OnboardingProfileSerializer(serializers.ModelSerializer):
             if not fmc:
                 return None
             return {
-                "id":    str(fmc.id),
-                "name":  fmc.name,
-                "code":  fmc.code,
+                "id": str(fmc.id),
+                "name": fmc.name,
+                "code": fmc.code,
                 "state": fmc.state,
             }
         except Exception:

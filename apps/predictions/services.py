@@ -613,13 +613,17 @@ class ComprehensiveInferenceService:
         Calculate weighted ensemble scores for all diseases.
 
         Uses database-configured weights per disease, with clinical rule boosts.
+        Gender-specific weighting for male vs female patients.
         """
         from apps.predictions.models import EnsembleWeightConfig
 
-        # 1. Get weights from database (with defaults fallback)
-        weights_config = ComprehensiveInferenceService._get_weights_from_db()
+        # 1. Get gender from user profile
+        user_gender = getattr(user, 'gender', None) or 'FEMALE'
+        
+        # 2. Get weights from database (with defaults fallback) - gender-adjusted
+        weights_config = ComprehensiveInferenceService._get_gender_weights(user_gender)
 
-        # 2. Calculate data quality adjustment (more data = more reliable)
+        # 3. Calculate data quality adjustment (more data = more reliable)
         quality_scores = ComprehensiveInferenceService._calculate_data_quality(model_predictions)
 
         # 3. Adjust weights based on data quality
@@ -729,6 +733,19 @@ class ComprehensiveInferenceService:
             "calculation_breakdown": calculation_breakdown,
             "weights_used": weights_used,
         }
+
+    @staticmethod
+    def _get_gender_weights(user_gender: str) -> dict:
+        """Get gender-specific weights based on user's gender."""
+        from apps.predictions.models import EnsembleWeightConfig
+        
+        # Use male weights for MALE, female weights for FEMALE/unknown
+        if user_gender == 'MALE':
+            logger.info("Using male-specific risk weights")
+            return EnsembleWeightConfig.get_male_weights()
+        
+        # Default to female weights
+        return EnsembleWeightConfig.get_default_weights()
 
     @staticmethod
     def _get_weights_from_db() -> dict:

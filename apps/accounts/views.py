@@ -75,24 +75,29 @@ class LoginView(TokenObtainPairView):
 
     @extend_schema(tags=["Auth"], summary="Login – obtain JWT token pair")
     def post(self, request, *args, **kwargs):
-        # Get the original response from SimpleJWT
         response = super().post(request, *args, **kwargs)
 
         if response.status_code == 200:
-            # Extract user from token
             from django.contrib.auth import get_user_model
 
             User = get_user_model()
 
-            # Get user data
-            email = request.data.get("email", "").lower()
-            try:
-                user = User.objects.get(email=email)
-            except User.DoesNotExist:
-                user = None
+            identifier = request.data.get("email", "").strip().lower()
+            user = None
+
+            if identifier and "/" in identifier:
+                try:
+                    user = User.objects.get(unique_id__iexact=identifier)
+                except User.DoesNotExist:
+                    pass
+
+            if not user:
+                try:
+                    user = User.objects.get(email=identifier)
+                except User.DoesNotExist:
+                    user = None
 
             if user:
-                # Clear failed attempts on successful login (skip in DEBUG)
                 if not settings.DEBUG:
                     x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
                     ip_address = (
@@ -100,13 +105,11 @@ class LoginView(TokenObtainPairView):
                         if x_forwarded_for
                         else request.META.get("REMOTE_ADDR", "0.0.0.0")
                     )
-                    AuthService.clear_failed_attempts(email)
+                    AuthService.clear_failed_attempts(user.email)
 
-                # Add user data to response
                 user_data = UserProfileSerializer(user, context={"request": request}).data
                 original_data = response.data
 
-                # Wrap in our response format
                 return Response(
                     {
                         "status": "success",
@@ -120,17 +123,31 @@ class LoginView(TokenObtainPairView):
                     status=status.HTTP_200_OK,
                 )
 
-        # Record failed attempt (skip in DEBUG)
         if not settings.DEBUG:
-            email = request.data.get("email", "").lower()
-            if email:
+            identifier = request.data.get("email", "").strip().lower()
+            if identifier:
                 x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
                 ip_address = (
                     x_forwarded_for.split(",")[0].strip()
                     if x_forwarded_for
                     else request.META.get("REMOTE_ADDR", "0.0.0.0")
                 )
-                AuthService.record_failed_attempt(email, ip_address)
+
+                # Try to get email from unique_id for logging
+                user = None
+                if "/" in identifier:
+                    try:
+                        user = User.objects.get(unique_id__iexact=identifier)
+                    except User.DoesNotExist:
+                        pass
+                if not user:
+                    try:
+                        user = User.objects.get(email=identifier)
+                    except User.DoesNotExist:
+                        pass
+
+                if user:
+                    AuthService.record_failed_attempt(user.email, ip_address)
 
         return response
 

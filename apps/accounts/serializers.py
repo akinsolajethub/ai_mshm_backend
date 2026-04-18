@@ -49,12 +49,12 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     Extends the default JWT token with user metadata embedded in the payload.
 
     Token claims added:
-      - email  : user's email address
-      - role   : user's role (used by frontend to route to correct portal)
-      - name   : user's full name
+      - email    : user's email address
+      - role     : user's role (used by frontend to route to correct portal)
+      - name     : user's full name
+      - unique_id: user's unique ID (MDC/YYYY/NNNNNN format)
 
-    Login response also includes a 'user' key with the full UserProfileSerializer
-    data so the frontend can populate the UI without an extra /me/ request.
+    Login accepts either email or unique_id (e.g., MDC/2024/001234).
     """
 
     @classmethod
@@ -63,26 +63,44 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         token["email"] = user.email
         token["role"] = user.role
         token["name"] = user.full_name
+        if user.unique_id:
+            token["unique_id"] = user.unique_id
         return token
 
     def validate(self, attrs):
-        # First check if user exists
         from django.contrib.auth import get_user_model
 
         User = get_user_model()
+        identifier = attrs.get("email", "").strip()
 
-        try:
-            user = User.objects.get(email=attrs.get("email", "").lower())
-        except User.DoesNotExist:
+        if not identifier:
             return super().validate(attrs)
 
-        # Check email verification BEFORE authentication
-        # For patients, email must be verified to login
-        # For staff/clinicians, allow login but mark in response
-        if not user.is_email_verified:
-            if user.role in [User.Role.PATIENT]:
-                # Don't block login, but frontend will prompt verification
+        identifier = identifier.lower()
+
+        # Try to find user by unique_id first (format: PREFIX/YEAR/NUMBER)
+        user = None
+        if "/" in identifier:
+            try:
+                user = User.objects.get(unique_id__iexact=identifier)
+            except User.DoesNotExist:
                 pass
+
+        # Fall back to email lookup
+        if not user:
+            try:
+                user = User.objects.get(email=identifier)
+            except User.DoesNotExist:
+                pass
+
+        if user and not user.is_email_verified:
+            if user.role in [User.Role.PATIENT]:
+                pass
+
+        # If we found user by unique_id, replace identifier with email for auth
+        if user and "/" in attrs.get("email", "").strip().lower():
+            attrs = attrs.copy()
+            attrs["email"] = user.email
 
         return super().validate(attrs)
 
@@ -198,6 +216,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "email",
+            "unique_id",
             "full_name",
             "role",
             "avatar_url",

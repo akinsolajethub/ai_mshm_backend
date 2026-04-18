@@ -58,6 +58,7 @@ from .models import (
     ConsultationNote,
     TreatmentPlan,
     ChangeRequest,
+    Prescription,
 )
 from .serializers import (
     HealthCareCenterSerializer,
@@ -1553,6 +1554,7 @@ class FMCStaffListView(APIView):
             temp_password=temp_password,
             facility_name=center.name,
             role=FHCStaffProfile.StaffRole(data["staff_role"]).label,
+            unique_id=user.unique_id,
         )
 
         return created_response(
@@ -1676,6 +1678,7 @@ class FMCClinicianListView(APIView):
                 temp_password=temp_password,
                 facility_name=center.name,
                 role="Clinician",
+                unique_id=user.unique_id,
             )
         except Exception as e:
             logger.warning(f"Failed to send clinician credentials email: {e}")

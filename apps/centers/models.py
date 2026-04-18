@@ -103,17 +103,13 @@ class HealthCareCenter(models.Model):
         default=CenterStatus.ACTIVE,
     )
 
-    escalates_to = models.ForeignKey(
-        "FederalHealthCenter",
+    escalates_to_state_hospital = models.ForeignKey(
+        "StateHospital",
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
         related_name="referring_phcs",
-        help_text=(
-            "The FMC this PHC escalates Severe/Very Severe patients to. "
-            "Set by Platform Admin only. Choose an FMC in the same state. "
-            "If not set, system falls back to any active FMC in same state."
-        ),
+        help_text="The State General Hospital this PHC escalates Moderate/Severe patients to.",
     )
 
     notify_on_severe = models.BooleanField(
@@ -149,24 +145,38 @@ class HealthCareCenter(models.Model):
     def get_active_staff(self):
         return self.staff_profiles.filter(user__is_active=True).select_related("user")
 
-    def get_escalation_fmc(self):
+    def get_escalation_hospital(self):
         """
-        Returns the FMC this PHC escalates to.
-        Priority: escalates_to (explicit) → any active FMC in same state → None.
+        Returns the State General Hospital this PHC escalates to.
+        Priority: escalates_to_state_hospital (explicit) → any active State Hospital in same state → None.
         """
-        if self.escalates_to_id:
-            fmc = self.escalates_to
-            if fmc and fmc.status == FederalHealthCenter.CenterStatus.ACTIVE:
-                return fmc
+        if self.escalates_to_state_hospital_id:
+            sth = self.escalates_to_state_hospital
+            if sth and sth.status == StateHospital.CenterStatus.ACTIVE:
+                return sth
 
         if self.state:
-            fallback = FederalHealthCenter.objects.filter(
-                status=FederalHealthCenter.CenterStatus.ACTIVE,
+            fallback = StateHospital.objects.filter(
+                status=StateHospital.CenterStatus.ACTIVE,
                 state__iexact=self.state,
             ).first()
             if fallback:
                 return fallback
 
+        return None
+
+    def get_escalation_fmc(self):
+        """
+        Returns the FMC this PHC escalates to (for backward compatibility).
+        Falls back to any active FMC in same state.
+        """
+        if self.state:
+            fmc = FederalHealthCenter.objects.filter(
+                status=FederalHealthCenter.CenterStatus.ACTIVE,
+                state__iexact=self.state,
+            ).first()
+            if fmc:
+                return fmc
         return None
 
 
@@ -205,6 +215,25 @@ class FederalHealthCenter(models.Model):
         editable=False,
         help_text="Always True — FMC always receives Very Severe alerts.",
     )
+
+    escalates_to_state_teaching = models.ForeignKey(
+        "StateTeachingHospital",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="referring_fmcs",
+        help_text="State Teaching Hospital this FMC escalates Very Severe cases to.",
+    )
+
+    escalates_to_federal_teaching = models.ForeignKey(
+        "FederalTeachingHospital",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="referring_fmcs",
+        help_text="Federal Teaching Hospital this FMC escalates critical cases to when needed.",
+    )
+
     admin_user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -229,6 +258,178 @@ class FederalHealthCenter(models.Model):
 
     def get_active_clinicians(self):
         return self.clinicians.filter(user__is_active=True, is_verified=True).select_related("user")
+
+
+# ── State Hospital (General) ─────────────────────────────────────────────────────
+
+
+class StateHospital(models.Model):
+    """
+    A State General Hospital — intermediate facility between PHC and Teaching hospitals.
+    Handles moderate severity cases that need more resources than PHC can provide.
+    """
+
+    class CenterStatus(models.TextChoices):
+        ACTIVE = "active", "Active"
+        INACTIVE = "inactive", "Inactive"
+        PENDING = "pending", "Pending Verification"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=255, unique=True)
+    code = models.CharField(max_length=20, unique=True, help_text="e.g. STH-LGS-001")
+    address = models.TextField(blank=True)
+    state = models.CharField(max_length=100, blank=True, db_index=True)
+    lga = models.CharField(max_length=100, blank=True)
+    zone = models.CharField(max_length=100, blank=True, help_text="Geopolitical zone")
+    phone = models.CharField(max_length=20, blank=True)
+    email = models.EmailField(blank=True)
+    status = models.CharField(
+        max_length=15,
+        choices=CenterStatus.choices,
+        default=CenterStatus.ACTIVE,
+    )
+
+    escalates_to_state_teaching = models.ForeignKey(
+        "StateTeachingHospital",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="referring_state_hospitals",
+        help_text="State Teaching Hospital this hospital escalates to.",
+    )
+
+    admin_user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="managed_state_hospital",
+        limit_choices_to={"role": "sth_admin"},
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "State General Hospital"
+        verbose_name_plural = "State General Hospitals"
+        ordering = ["state", "name"]
+
+    def __str__(self):
+        return f"{self.name} ({self.code})"
+
+
+# ── State Teaching Hospital ─────────────────────────────────────────────────────
+
+
+class StateTeachingHospital(models.Model):
+    """
+    A State Teaching Hospital — handles severe cases requiring specialized care.
+    More advanced than State General Hospital but below Federal level.
+    """
+
+    class CenterStatus(models.TextChoices):
+        ACTIVE = "active", "Active"
+        INACTIVE = "inactive", "Inactive"
+        PENDING = "pending", "Pending Verification"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=255, unique=True)
+    code = models.CharField(max_length=20, unique=True, help_text="e.g. STTH-LGS-001")
+    address = models.TextField(blank=True)
+    state = models.CharField(max_length=100, blank=True, db_index=True)
+    zone = models.CharField(max_length=100, blank=True, help_text="Geopolitical zone")
+    phone = models.CharField(max_length=20, blank=True)
+    email = models.EmailField(blank=True)
+    status = models.CharField(
+        max_length=15,
+        choices=CenterStatus.choices,
+        default=CenterStatus.ACTIVE,
+    )
+
+    escalates_to_fmc = models.ForeignKey(
+        "FederalHealthCenter",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="referring_state_teaching_hospitals",
+        help_text="FMC this teaching hospital escalates to for very severe cases.",
+    )
+
+    escalates_to_federal_teaching = models.ForeignKey(
+        "FederalTeachingHospital",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="referring_state_teaching_hospitals",
+        help_text="Federal Teaching Hospital this teaching hospital escalates critical cases to.",
+    )
+
+    admin_user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="managed_state_teaching",
+        limit_choices_to={"role": "stth_admin"},
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "State Teaching Hospital"
+        verbose_name_plural = "State Teaching Hospitals"
+        ordering = ["state", "name"]
+
+    def __str__(self):
+        return f"{self.name} ({self.code})"
+
+
+# ── Federal Teaching Hospital ───────────────────────────────────────────────────
+
+
+class FederalTeachingHospital(models.Model):
+    """
+    Federal Teaching Hospital — highest level of care for most severe cases.
+    Receives escalations from FMC when cases exceed FMC's capacity.
+    """
+
+    class CenterStatus(models.TextChoices):
+        ACTIVE = "active", "Active"
+        INACTIVE = "inactive", "Inactive"
+        PENDING = "pending", "Pending Verification"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=255, unique=True)
+    code = models.CharField(max_length=20, unique=True, help_text="e.g. FTH-001")
+    address = models.TextField(blank=True)
+    state = models.CharField(max_length=100, blank=True, db_index=True)
+    zone = models.CharField(max_length=100, blank=True, help_text="Geopolitical zone")
+    phone = models.CharField(max_length=20, blank=True)
+    email = models.EmailField(blank=True)
+    status = models.CharField(
+        max_length=15,
+        choices=CenterStatus.choices,
+        default=CenterStatus.ACTIVE,
+    )
+
+    admin_user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="managed_federal_teaching",
+        limit_choices_to={"role": "fth_admin"},
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Federal Teaching Hospital"
+        verbose_name_plural = "Federal Teaching Hospitals"
+        ordering = ["state", "name"]
+
+    def __str__(self):
+        return f"{self.name} ({self.code})"
 
 
 # ── PHC Staff Profile ─────────────────────────────────────────────────────────

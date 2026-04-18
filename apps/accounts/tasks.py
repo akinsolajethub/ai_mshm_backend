@@ -86,6 +86,7 @@ def send_staff_credentials_email_task(
     temp_password: str,
     facility_name: str,
     role: str,
+    unique_id: str = None,
 ):
     html = render_to_string(
         "emails/staff_credentials.html",
@@ -94,6 +95,7 @@ def send_staff_credentials_email_task(
             "temp_password": temp_password,
             "facility_name": facility_name,
             "role": role,
+            "unique_id": unique_id,
             "app_name": settings.APP_NAME,
         },
     )
@@ -101,6 +103,7 @@ def send_staff_credentials_email_task(
         f"Hi {user_name},\n\n"
         f"Welcome to {settings.APP_NAME}!\n\n"
         f"Your account has been created at {facility_name} as {role}.\n\n"
+        f"Your ID: {unique_id or 'N/A'}\n"
         f"Temporary Password: {temp_password}\n\n"
         f"Please login and change your password immediately.\n\n"
         f"— The {settings.APP_NAME} Team"
