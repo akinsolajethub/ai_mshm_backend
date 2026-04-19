@@ -388,26 +388,29 @@ class AdminStatsView(APIView):
 
         from .models import User
         from apps.onboarding.models import OnboardingProfile
-        from apps.predictions.models import RiskPrediction
-        from apps.checkin.models import CheckIn
+        from apps.predictions.models import PredictionResult, ComprehensivePredictionResult
+        from apps.health_checkin.models import CheckinSession
+
+        from apps.centers.models import HealthCareCenter
 
         total_users = User.objects.filter(role='patient').count()
         total_staff = User.objects.exclude(role='patient').count()
-        facilities_count = User.objects.exclude(facility__isnull=True).values('facility').distinct().count()
+        facilities_count = HealthCareCenter.objects.count()
         active_sessions = User.objects.filter(last_login__date=today).count()
 
         new_users_this_week = User.objects.filter(date_joined__gte=week_ago).count()
         new_users_this_month = User.objects.filter(date_joined__gte=month_ago).count()
 
-        predictions_today = RiskPrediction.objects.filter(computed_at__date=today).count()
-        predictions_this_week = RiskPrediction.objects.filter(computed_at__gte=week_ago).count()
+        predictions_today = PredictionResult.objects.filter(prediction_date=today).count()
+        predictions_this_week = PredictionResult.objects.filter(prediction_date__gte=week_ago).count()
 
-        checkins_today = CheckIn.objects.filter(date=today).count()
-        checkins_this_week = CheckIn.objects.filter(date__gte=week_ago).count()
+        checkins_today = CheckinSession.objects.filter(checkin_date=today, status='complete').count()
+        checkins_this_week = CheckinSession.objects.filter(checkin_date__gte=week_ago, status='complete').count()
 
-        pending_onboardings = OnboardingProfile.objects.filter(
+        pending_onboardings = User.objects.filter(
             onboarding_completed=False,
-            onboarding_step__lt=7
+            onboarding_step__lt=7,
+            role='patient'
         ).count()
 
         return Response({
@@ -484,7 +487,7 @@ class AdminUsersListView(APIView):
                         "email": u.email,
                         "full_name": u.full_name,
                         "role": u.role,
-                        "facility": u.facility,
+                        "facility": None,
                         "is_active": u.is_active,
                         "date_joined": u.date_joined.isoformat() if u.date_joined else None,
                         "last_login": u.last_login.isoformat() if u.last_login else None,
@@ -496,6 +499,48 @@ class AdminUsersListView(APIView):
                 "page_size": page_size,
             },
         })
+
+
+class AdminUserDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        tags=["Admin"],
+        summary="Get user by ID",
+    )
+    def get(self, request, user_id):
+        import uuid
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        try:
+            user_id_uuid = uuid.UUID(user_id)
+            user = User.objects.get(id=user_id_uuid)
+            
+            return Response({
+                "success": True,
+                "status": 200,
+                "data": {
+                    "id": str(user.id),
+                    "email": user.email,
+                    "full_name": user.full_name,
+                    "role": user.role,
+                    "facility": None,
+                    "is_active": user.is_active,
+                    "is_staff": user.is_staff,
+                    "is_superuser": user.is_superuser,
+                    "is_email_verified": user.is_email_verified,
+                    "onboarding_completed": user.onboarding_completed,
+                    "onboarding_step": user.onboarding_step,
+                    "date_joined": user.date_joined.isoformat() if user.date_joined else None,
+                    "last_login": user.last_login.isoformat() if user.last_login else None,
+                },
+            })
+        except User.DoesNotExist:
+            return Response({"success": False, "status": 404, "message": "User not found"}, status=404)
+        except Exception as e:
+            logger.error(f"Error: {e}")
+            return Response({"success": False, "status": 500, "message": str(e)}, status=500)
 
 
 class ActivityLogsView(APIView):
@@ -533,20 +578,32 @@ class ActivityLogsView(APIView):
 
         logs = []
         for op in logs_page:
-            if op.onboarding_completed:
+            try:
+                user_obj = op.user
+                user_name = user_obj.full_name if user_obj and hasattr(user_obj, 'full_name') else 'Unknown'
+                user_email = user_obj.email if user_obj and hasattr(user_obj, 'email') else ''
+                onboarding_step = user_obj.onboarding_step if user_obj and hasattr(user_obj, 'onboarding_step') else 0
+                is_completed = user_obj.onboarding_completed if user_obj and hasattr(user_obj, 'onboarding_completed') else False
+            except Exception:
+                user_name = 'Unknown'
+                user_email = ''
+                onboarding_step = 0
+                is_completed = False
+
+            if is_completed:
                 action_type = 'onboarding_completed'
-            elif op.onboarding_step == 1:
+            elif onboarding_step == 1:
                 action_type = 'registration'
             else:
-                action_type = f'onboarding_step_{op.onboarding_step}'
+                action_type = f'onboarding_step_{onboarding_step}'
 
             logs.append({
                 "id": str(op.id),
                 "action": action_type,
-                "user": op.user.full_name if op.user else 'Unknown',
-                "email": op.user.email if op.user else '',
-                "facility": op.health_centre,
-                "timestamp": op.updated_at.isoformat(),
+                "user": user_name,
+                "email": user_email,
+                "facility": user_obj.facility if user_obj and hasattr(user_obj, 'facility') and user_obj.facility else None,
+                "timestamp": op.updated_at.isoformat() if op else None,
             })
 
         return Response({

@@ -56,6 +56,64 @@ class RiskSeverity(models.TextChoices):
     VERY_SEVERE = "very_severe", "Very Severe"
 
 
+# ── Facility Classification ───────────────────────────────────────────────
+
+
+class FacilityType(models.TextChoices):
+    """
+    Classification of healthcare facilities by sector/ownership.
+    """
+    PUBLIC = "public", "Public"
+    PRIVATE = "private", "Private"
+    INSURANCE = "insurance", "Health Insurance (HMO)"
+
+
+class Country(models.Model):
+    """
+    Country registry for facilities.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=100, unique=True)
+    code = models.CharField(max_length=3, unique=True, help_text="ISO 3166-1 alpha-3 code")
+    code_2 = models.CharField(max_length=2, unique=True, blank=True, help_text="ISO 3166-1 alpha-2 code")
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Country"
+        verbose_name_plural = "Countries"
+        ordering = ["name"]
+
+    def __str__(self):
+        return f"{self.name} ({self.code})"
+
+
+class State(models.Model):
+    """
+    State registry with geopolitical zone mapping.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=100)
+    code = models.CharField(max_length=3, help_text="Short code e.g. Lagos=LAG")
+    zone = models.CharField(max_length=50, help_text="Geopolitical zone: NW, NE, SW, SE, NC, SS")
+    country = models.ForeignKey(
+        Country,
+        on_delete=models.CASCADE,
+        related_name="states",
+    )
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "State"
+        verbose_name_plural = "States"
+        ordering = ["zone", "name"]
+        unique_together = ["country", "name"]
+
+    def __str__(self):
+        return f"{self.name}, {self.country.code}"
+
+
 # ── Primary Health Centre (PHC / HCC) ────────────────────────────────────────
 
 
@@ -80,6 +138,19 @@ class HealthCareCenter(models.Model):
         max_length=20,
         unique=True,
         help_text="Short identifier e.g. PHC-LGS-001",
+    )
+    facility_type = models.CharField(
+        max_length=20,
+        choices=FacilityType.choices,
+        default=FacilityType.PUBLIC,
+        help_text="Classification: Public, Private, or Insurance",
+    )
+    country = models.ForeignKey(
+        Country,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="health_centers",
     )
     address = models.TextField(blank=True)
     state = models.CharField(
@@ -200,8 +271,21 @@ class FederalHealthCenter(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=255, unique=True)
     code = models.CharField(max_length=20, unique=True, help_text="e.g. FMC-ABJ-001")
+    facility_type = models.CharField(
+        max_length=20,
+        choices=FacilityType.choices,
+        default=FacilityType.PUBLIC,
+    )
+    country = models.ForeignKey(
+        Country,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="federal_health_centers",
+    )
     address = models.TextField(blank=True)
     state = models.CharField(max_length=100, blank=True, db_index=True)
+    lga = models.CharField(max_length=100, blank=True, verbose_name="LGA")
     zone = models.CharField(max_length=100, blank=True, help_text="Geopolitical zone")
     phone = models.CharField(max_length=20, blank=True)
     email = models.EmailField(blank=True)
@@ -277,6 +361,18 @@ class StateHospital(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=255, unique=True)
     code = models.CharField(max_length=20, unique=True, help_text="e.g. STH-LGS-001")
+    facility_type = models.CharField(
+        max_length=20,
+        choices=FacilityType.choices,
+        default=FacilityType.PUBLIC,
+    )
+    country = models.ForeignKey(
+        Country,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="state_hospitals",
+    )
     address = models.TextField(blank=True)
     state = models.CharField(max_length=100, blank=True, db_index=True)
     lga = models.CharField(max_length=100, blank=True)
@@ -335,8 +431,21 @@ class StateTeachingHospital(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=255, unique=True)
     code = models.CharField(max_length=20, unique=True, help_text="e.g. STTH-LGS-001")
+    facility_type = models.CharField(
+        max_length=20,
+        choices=FacilityType.choices,
+        default=FacilityType.PUBLIC,
+    )
+    country = models.ForeignKey(
+        Country,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="state_teaching_hospitals",
+    )
     address = models.TextField(blank=True)
     state = models.CharField(max_length=100, blank=True, db_index=True)
+    lga = models.CharField(max_length=100, blank=True, verbose_name="LGA")
     zone = models.CharField(max_length=100, blank=True, help_text="Geopolitical zone")
     phone = models.CharField(max_length=20, blank=True)
     email = models.EmailField(blank=True)
@@ -401,8 +510,21 @@ class FederalTeachingHospital(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=255, unique=True)
     code = models.CharField(max_length=20, unique=True, help_text="e.g. FTH-001")
+    facility_type = models.CharField(
+        max_length=20,
+        choices=FacilityType.choices,
+        default=FacilityType.PUBLIC,
+    )
+    country = models.ForeignKey(
+        Country,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="federal_teaching_hospitals",
+    )
     address = models.TextField(blank=True)
     state = models.CharField(max_length=100, blank=True, db_index=True)
+    lga = models.CharField(max_length=100, blank=True, verbose_name="LGA")
     zone = models.CharField(max_length=100, blank=True, help_text="Geopolitical zone")
     phone = models.CharField(max_length=20, blank=True)
     email = models.EmailField(blank=True)
@@ -426,6 +548,247 @@ class FederalTeachingHospital(models.Model):
     class Meta:
         verbose_name = "Federal Teaching Hospital"
         verbose_name_plural = "Federal Teaching Hospitals"
+        ordering = ["state", "name"]
+
+    def __str__(self):
+        return f"{self.name} ({self.code})"
+
+
+# ── Health Insurance / HMO ────────────────────────────────────────────────────
+
+
+class HealthInsuranceOrganization(models.Model):
+    """
+    Health Maintenance Organization (HMO) — monitors patients and handles claims.
+    """
+
+    class CenterStatus(models.TextChoices):
+        ACTIVE = "active", "Active"
+        INACTIVE = "inactive", "Inactive"
+        PENDING = "pending", "Pending Verification"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=255, unique=True)
+    code = models.CharField(max_length=20, unique=True, help_text="e.g. HMO-001")
+    facility_type = models.CharField(
+        max_length=20,
+        choices=FacilityType.choices,
+        default=FacilityType.INSURANCE,
+    )
+    country = models.ForeignKey(
+        Country,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="health_insurance_orgs",
+    )
+    address = models.TextField(blank=True)
+    state = models.CharField(max_length=100, blank=True, db_index=True)
+    lga = models.CharField(max_length=100, blank=True, verbose_name="LGA")
+    zone = models.CharField(max_length=100, blank=True, help_text="Geopolitical zone")
+    phone = models.CharField(max_length=20, blank=True)
+    email = models.EmailField(blank=True)
+    status = models.CharField(
+        max_length=15,
+        choices=CenterStatus.choices,
+        default=CenterStatus.ACTIVE,
+    )
+    license_number = models.CharField(max_length=50, blank=True)
+
+    admin_user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="managed_hmo",
+        limit_choices_to={"role": "hmo_admin"},
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Health Insurance Organization (HMO)"
+        verbose_name_plural = "Health Insurance Organizations (HMOs)"
+        ordering = ["state", "name"]
+
+    def __str__(self):
+        return f"{self.name} ({self.code})"
+
+
+# ── Clinic ────────────────────────────────────────────────────────────────────────
+
+
+class Clinic(models.Model):
+    """
+    Private Clinic — handles mild/moderate cases.
+    """
+
+    class CenterStatus(models.TextChoices):
+        ACTIVE = "active", "Active"
+        INACTIVE = "inactive", "Inactive"
+        PENDING = "pending", "Pending Verification"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=255, unique=True)
+    code = models.CharField(max_length=20, unique=True, help_text="e.g. CLN-001")
+    facility_type = models.CharField(
+        max_length=20,
+        choices=FacilityType.choices,
+        default=FacilityType.PRIVATE,
+    )
+    country = models.ForeignKey(
+        Country,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="clinics",
+    )
+    address = models.TextField(blank=True)
+    state = models.CharField(max_length=100, blank=True, db_index=True)
+    lga = models.CharField(max_length=100, blank=True)
+    zone = models.CharField(max_length=100, blank=True, help_text="Geopolitical zone")
+    phone = models.CharField(max_length=20, blank=True)
+    email = models.EmailField(blank=True)
+    status = models.CharField(
+        max_length=15,
+        choices=CenterStatus.choices,
+        default=CenterStatus.ACTIVE,
+    )
+
+    admin_user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="managed_clinic",
+        limit_choices_to={"role": "clinic_admin"},
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Clinic"
+        verbose_name_plural = "Clinics"
+        ordering = ["state", "name"]
+
+    def __str__(self):
+        return f"{self.name} ({self.code})"
+
+
+# ── Private Hospital ────────────────────────────────────────────────────────────
+
+
+class PrivateHospital(models.Model):
+    """
+    Private Hospital — handles moderate/severe cases.
+    """
+
+    class CenterStatus(models.TextChoices):
+        ACTIVE = "active", "Active"
+        INACTIVE = "inactive", "Inactive"
+        PENDING = "pending", "Pending Verification"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=255, unique=True)
+    code = models.CharField(max_length=20, unique=True, help_text="e.g. PVT-001")
+    facility_type = models.CharField(
+        max_length=20,
+        choices=FacilityType.choices,
+        default=FacilityType.PRIVATE,
+    )
+    country = models.ForeignKey(
+        Country,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="private_hospitals",
+    )
+    address = models.TextField(blank=True)
+    state = models.CharField(max_length=100, blank=True, db_index=True)
+    lga = models.CharField(max_length=100, blank=True)
+    zone = models.CharField(max_length=100, blank=True, help_text="Geopolitical zone")
+    phone = models.CharField(max_length=20, blank=True)
+    email = models.EmailField(blank=True)
+    status = models.CharField(
+        max_length=15,
+        choices=CenterStatus.choices,
+        default=CenterStatus.ACTIVE,
+    )
+
+    admin_user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="managed_private_hospital",
+        limit_choices_to={"role": "pvt_admin"},
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Private Hospital"
+        verbose_name_plural = "Private Hospitals"
+        ordering = ["state", "name"]
+
+    def __str__(self):
+        return f"{self.name} ({self.code})"
+
+
+# ── Private Teaching Hospital ────────────────────────────────────────────────────
+
+
+class PrivateTeachingHospital(models.Model):
+    """
+    Private Teaching Hospital — handles severe cases.
+    """
+
+    class CenterStatus(models.TextChoices):
+        ACTIVE = "active", "Active"
+        INACTIVE = "inactive", "Inactive"
+        PENDING = "pending", "Pending Verification"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=255, unique=True)
+    code = models.CharField(max_length=20, unique=True, help_text="e.g. PTTH-001")
+    facility_type = models.CharField(
+        max_length=20,
+        choices=FacilityType.choices,
+        default=FacilityType.PRIVATE,
+    )
+    country = models.ForeignKey(
+        Country,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="private_teaching_hospitals",
+    )
+    address = models.TextField(blank=True)
+    state = models.CharField(max_length=100, blank=True, db_index=True)
+    lga = models.CharField(max_length=100, blank=True, verbose_name="LGA")
+    zone = models.CharField(max_length=100, blank=True, help_text="Geopolitical zone")
+    phone = models.CharField(max_length=20, blank=True)
+    email = models.EmailField(blank=True)
+    status = models.CharField(
+        max_length=15,
+        choices=CenterStatus.choices,
+        default=CenterStatus.ACTIVE,
+    )
+
+    admin_user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="managed_ptth",
+        limit_choices_to={"role": "ptth_admin"},
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Private Teaching Hospital"
+        verbose_name_plural = "Private Teaching Hospitals"
         ordering = ["state", "name"]
 
     def __str__(self):

@@ -113,6 +113,9 @@ from .views import (
     HCCAdminDetailView,
     FHCAdminListView,
     FHCAdminDetailView,
+    CentersAdminListAllView,
+    CountryListView,
+    StateListView,
 )
 
 app_name = "centers"
@@ -277,8 +280,12 @@ urlpatterns = [
         "change-request/<uuid:pk>/", ChangeRequestDetailView.as_view(), name="change-request-detail"
     ),
     # ── Platform Admin ────────────────────────────────────────────────────────
-    # path("admin/phc/",                        HCCAdminListView.as_view(),      name="admin-phc-list"),
-    # path("admin/phc/<uuid:pk>/",              HCCAdminDetailView.as_view(),    name="admin-phc-detail"),
-    # path("admin/fmc/",                        FHCAdminListView.as_view(),      name="admin-fmc-list"),
-    # path("admin/fmc/<uuid:pk>/",              FHCAdminDetailView.as_view(),    name="admin-fmc-detail"),
+    path("admin/phc/", HCCAdminListView.as_view(), name="admin-phc-list"),
+    path("admin/phc/<uuid:pk>/", HCCAdminDetailView.as_view(), name="admin-phc-detail"),
+    path("admin/fmc/", FHCAdminListView.as_view(), name="admin-fmc-list"),
+    path("admin/fmc/<uuid:pk>/", FHCAdminDetailView.as_view(), name="admin-fmc-detail"),
+    path("admin/centers/", CentersAdminListAllView.as_view(), name="admin-centers-list"),
+    # ── Locations ───────────────────────────────────────────────────────────────
+    path("countries/", CountryListView.as_view(), name="country-list"),
+    path("states/", StateListView.as_view(), name="state-list"),
 ]

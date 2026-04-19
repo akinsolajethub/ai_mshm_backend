@@ -19,6 +19,7 @@ from .views import (
     DeleteAccountView,
     AdminStatsView,
     AdminUsersListView,
+    AdminUserDetailView,
     ActivityLogsView,
 )
 
@@ -43,5 +44,6 @@ urlpatterns = [
     # Admin endpoints
     path("stats/", AdminStatsView.as_view(), name="admin-stats"),
     path("users/", AdminUsersListView.as_view(), name="admin-users"),
+    path("users/<str:user_id>/", AdminUserDetailView.as_view(), name="admin-user-detail"),
     path("logs/", ActivityLogsView.as_view(), name="activity-logs"),
 ]

@@ -50,6 +50,15 @@ from core.permissions.roles import (
 from .models import (
     HealthCareCenter,
     FederalHealthCenter,
+    StateHospital,
+    StateTeachingHospital,
+    FederalTeachingHospital,
+    HealthInsuranceOrganization,
+    Clinic,
+    PrivateHospital,
+    PrivateTeachingHospital,
+    Country,
+    State,
     HCCStaffProfile,
     FHCStaffProfile,
     ClinicianProfile,
@@ -2774,22 +2783,290 @@ class HCCAdminListView(APIView):
     @extend_schema(tags=["Platform Admin — Centers"], summary="[Platform Admin] List all PHCs")
     def get(self, request):
         centers = HealthCareCenter.objects.all().order_by("state", "name")
-        return success_response(data=HealthCareCenterSerializer(centers, many=True).data)
+        results = [{
+            "id": str(c.id),
+            "name": c.name,
+            "address": c.address,
+            "state": c.state,
+            "lga": c.lga,
+            "phone": c.phone,
+            "email": c.email,
+            "status": c.status,
+            "tier": "PHC",
+        } for c in centers]
+        return success_response(data={
+            "results": results,
+            "count": len(results)
+        })
+
+
+class CentersAdminListAllView(APIView):
+    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    @extend_schema(tags=["Platform Admin — Centers"], summary="[Platform Admin] List ALL centers (PHC, FMC, etc)")
+    def get(self, request):
+        results = []
+        tier = request.query_params.get("tier", "").lower()
+
+        if not tier or tier == "phc":
+            for c in HealthCareCenter.objects.all().order_by("state", "name"):
+                results.append({
+                    "id": str(c.id),
+                    "code": c.code,
+                    "name": c.name,
+                    "address": c.address,
+                    "state": c.state,
+                    "lga": c.lga,
+                    "zone": "",
+                    "phone": c.phone,
+                    "email": c.email,
+                    "status": c.status,
+                    "tier": "PHC",
+                    "escalates_to": str(c.escalates_to_state_hospital_id) if c.escalates_to_state_hospital_id else "",
+                    "admin_user": c.admin_user.full_name if c.admin_user else "",
+                    "admin_email": c.admin_user.email if c.admin_user else "",
+                })
+
+        if not tier or tier == "fmc":
+            for c in FederalHealthCenter.objects.all().order_by("state", "name"):
+                results.append({
+                    "id": str(c.id),
+                    "code": c.code,
+                    "name": c.name,
+                    "address": c.address,
+                    "state": c.state,
+                    "lga": "",
+                    "zone": c.zone,
+                    "phone": c.phone,
+                    "email": c.email,
+                    "status": c.status,
+                    "tier": "FMC",
+                    "escalates_to": str(c.escalates_to_state_teaching_id) if c.escalates_to_state_teaching_id else "",
+                    "admin_user": c.admin_user.full_name if c.admin_user else "",
+                    "admin_email": c.admin_user.email if c.admin_user else "",
+                })
+
+        if not tier or tier == "sth":
+            for c in StateHospital.objects.all().order_by("state", "name"):
+                results.append({
+                    "id": str(c.id),
+                    "code": c.code,
+                    "name": c.name,
+                    "address": c.address,
+                    "state": c.state,
+                    "lga": c.lga,
+                    "zone": c.zone,
+                    "phone": c.phone,
+                    "email": c.email,
+                    "status": c.status,
+                    "tier": "STH",
+                    "escalates_to": str(c.escalates_to_state_teaching_id) if c.escalates_to_state_teaching_id else "",
+                    "admin_user": c.admin_user.full_name if c.admin_user else "",
+                    "admin_email": c.admin_user.email if c.admin_user else "",
+                })
+
+        if not tier or tier == "stth":
+            for c in StateTeachingHospital.objects.all().order_by("state", "name"):
+                results.append({
+                    "id": str(c.id),
+                    "code": c.code,
+                    "name": c.name,
+                    "address": c.address,
+                    "state": c.state,
+                    "lga": "",
+                    "zone": c.zone,
+                    "phone": c.phone,
+                    "email": c.email,
+                    "status": c.status,
+                    "tier": "STTH",
+                    "escalates_to": str(c.escalates_to_fmc_id) if c.escalates_to_fmc_id else "",
+                    "admin_user": c.admin_user.full_name if c.admin_user else "",
+                    "admin_email": c.admin_user.email if c.admin_user else "",
+                })
+
+        if not tier or tier == "fth":
+            for c in FederalTeachingHospital.objects.all().order_by("state", "name"):
+                results.append({
+                    "id": str(c.id),
+                    "code": c.code,
+                    "name": c.name,
+                    "address": c.address,
+                    "state": c.state,
+                    "lga": "",
+                    "zone": c.zone,
+                    "phone": c.phone,
+                    "email": c.email,
+                    "status": c.status,
+                    "tier": "FTH",
+                    "escalates_to": "",
+                    "admin_user": c.admin_user.full_name if c.admin_user else "",
+                    "admin_email": c.admin_user.email if c.admin_user else "",
+                })
+
+        if not tier or tier == "hmo":
+            for c in HealthInsuranceOrganization.objects.all().order_by("state", "name"):
+                results.append({
+                    "id": str(c.id),
+                    "code": c.code,
+                    "name": c.name,
+                    "address": c.address,
+                    "state": c.state,
+                    "lga": "",
+                    "zone": c.zone,
+                    "phone": c.phone,
+                    "email": c.email,
+                    "status": c.status,
+                    "tier": "HMO",
+                    "license_number": c.license_number,
+                    "escalates_to": "",
+                    "admin_user": c.admin_user.full_name if c.admin_user else "",
+                    "admin_email": c.admin_user.email if c.admin_user else "",
+                })
+
+        if not tier or tier == "cln":
+            for c in Clinic.objects.all().order_by("state", "name"):
+                results.append({
+                    "id": str(c.id),
+                    "code": c.code,
+                    "name": c.name,
+                    "address": c.address,
+                    "state": c.state,
+                    "lga": c.lga,
+                    "zone": c.zone,
+                    "phone": c.phone,
+                    "email": c.email,
+                    "status": c.status,
+                    "tier": "CLN",
+                    "escalates_to": "",
+                    "admin_user": c.admin_user.full_name if c.admin_user else "",
+                    "admin_email": c.admin_user.email if c.admin_user else "",
+                })
+
+        if not tier or tier == "pvt":
+            for c in PrivateHospital.objects.all().order_by("state", "name"):
+                results.append({
+                    "id": str(c.id),
+                    "code": c.code,
+                    "name": c.name,
+                    "address": c.address,
+                    "state": c.state,
+                    "lga": c.lga,
+                    "zone": c.zone,
+                    "phone": c.phone,
+                    "email": c.email,
+                    "status": c.status,
+                    "tier": "PVT",
+                    "escalates_to": "",
+                    "admin_user": c.admin_user.full_name if c.admin_user else "",
+                    "admin_email": c.admin_user.email if c.admin_user else "",
+                })
+
+        if not tier or tier == "ptth":
+            for c in PrivateTeachingHospital.objects.all().order_by("state", "name"):
+                results.append({
+                    "id": str(c.id),
+                    "code": c.code,
+                    "name": c.name,
+                    "address": c.address,
+                    "state": c.state,
+                    "lga": "",
+                    "zone": c.zone,
+                    "phone": c.phone,
+                    "email": c.email,
+                    "status": c.status,
+                    "tier": "PTTH",
+                    "escalates_to": "",
+                    "admin_user": c.admin_user.full_name if c.admin_user else "",
+                    "admin_email": c.admin_user.email if c.admin_user else "",
+                })
+
+        return success_response(data={
+            "results": results,
+            "count": len(results)
+        })
 
     @extend_schema(
         tags=["Platform Admin — Centers"],
         request=HealthCareCenterSerializer,
-        summary="[Platform Admin] Create a PHC",
-        description="After creation, set escalates_to to link this PHC to an FMC.",
+        summary="[Platform Admin] Create a new facility",
+        description="Create a new facility of any type (PHC, FMC, STH, etc.)",
     )
     def post(self, request):
-        serializer = HealthCareCenterSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        center = serializer.save()
+        data = request.data
+        tier = data.get("tier", "PHC").upper()
+        
+        # Get country if provided
+        country = None
+        if data.get("country"):
+            try:
+                country = Country.objects.get(pk=data.get("country"))
+            except Country.DoesNotExist:
+                pass
+
+        facility_data = {
+            "name": data.get("name"),
+            "code": data.get("code"),
+            "address": data.get("address", ""),
+            "state": data.get("state", ""),
+            "lga": data.get("lga", ""),
+            "zone": data.get("zone", ""),
+            "phone": data.get("phone", ""),
+            "email": data.get("email", ""),
+            "status": data.get("status", "active"),
+            "facility_type": data.get("facility_type", "public"),
+            "country": country,
+        }
+
+        if tier == "PHC":
+            facility = HealthCareCenter.objects.create(**facility_data)
+        elif tier == "FMC":
+            facility = FederalHealthCenter.objects.create(**facility_data)
+        elif tier in ("STH", "STGH"):
+            facility = StateHospital.objects.create(**facility_data)
+        elif tier == "STTH":
+            facility = StateTeachingHospital.objects.create(**facility_data)
+        elif tier == "FTH":
+            facility = FederalTeachingHospital.objects.create(**facility_data)
+        elif tier == "HMO":
+            facility_data["license_number"] = data.get("license_number", "")
+            facility = HealthInsuranceOrganization.objects.create(**facility_data)
+        elif tier == "CLN":
+            facility = Clinic.objects.create(**facility_data)
+        elif tier == "PVT":
+            facility = PrivateHospital.objects.create(**facility_data)
+        elif tier == "PTTH":
+            facility = PrivateTeachingHospital.objects.create(**facility_data)
+        else:
+            return error_response(f"Invalid facility tier: {tier}", http_status=400)
+
         return created_response(
-            data=HealthCareCenterSerializer(center).data,
-            message=f"PHC '{center.name}' created.",
+            data={"id": str(facility.id), "name": facility.name},
+            message=f"{tier} '{facility.name}' created successfully.",
         )
+
+
+class CountryListView(APIView):
+    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    @extend_schema(tags=["Platform Admin — Locations"], summary="List all countries")
+    def get(self, request):
+        countries = Country.objects.filter(is_active=True).order_by("name")
+        results = [{"id": str(c.id), "name": c.name, "code": c.code} for c in countries]
+        return success_response(data={"results": results, "count": len(results)})
+
+
+class StateListView(APIView):
+    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    @extend_schema(tags=["Platform Admin — Locations"], summary="List states by country")
+    def get(self, request):
+        country_id = request.query_params.get("country")
+        if country_id:
+            states = State.objects.filter(country_id=country_id, is_active=True).order_by("name")
+        else:
+            states = State.objects.filter(is_active=True).order_by("name")
+        results = [{"id": str(s.id), "name": s.name, "code": s.code, "zone": s.zone} for s in states]
+        return success_response(data={"results": results, "count": len(results)})
 
 
 class HCCAdminDetailView(APIView):
@@ -2839,7 +3116,21 @@ class FHCAdminListView(APIView):
     @extend_schema(tags=["Platform Admin — Centers"], summary="[Platform Admin] List all FMCs")
     def get(self, request):
         centers = FederalHealthCenter.objects.all().order_by("state", "name")
-        return success_response(data=FederalHealthCenterSerializer(centers, many=True).data)
+        results = [{
+            "id": str(c.id),
+            "name": c.name,
+            "address": c.address,
+            "state": c.state,
+            "zone": c.zone,
+            "phone": c.phone,
+            "email": c.email,
+            "status": c.status,
+            "tier": "FMC",
+        } for c in centers]
+        return success_response(data={
+            "results": results,
+            "count": len(results)
+        })
 
     @extend_schema(
         tags=["Platform Admin — Centers"],
