@@ -17,6 +17,9 @@ from .views import (
     MeView,
     ChangePasswordView,
     DeleteAccountView,
+    AdminStatsView,
+    AdminUsersListView,
+    ActivityLogsView,
 )
 
 app_name = "accounts"
@@ -37,4 +40,8 @@ urlpatterns = [
     path("me/", MeView.as_view(), name="me"),
     path("me/change-password/", ChangePasswordView.as_view(), name="change-password"),
     path("me/delete/", DeleteAccountView.as_view(), name="delete-account"),
+    # Admin endpoints
+    path("stats/", AdminStatsView.as_view(), name="admin-stats"),
+    path("users/", AdminUsersListView.as_view(), name="admin-users"),
+    path("logs/", ActivityLogsView.as_view(), name="activity-logs"),
 ]

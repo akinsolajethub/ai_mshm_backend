@@ -365,3 +365,197 @@ class DeleteAccountView(APIView):
         serializer.is_valid(raise_exception=True)
         request.user.delete()
         return success_response(message="Account deleted successfully.")
+
+
+# ── Admin Stats ──────────────────────────────────────────────────────────────
+
+
+class AdminStatsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        tags=["Admin"],
+        summary="Get system statistics",
+    )
+    def get(self, request):
+        from django.utils import timezone
+        from datetime import timedelta
+
+        now = timezone.now()
+        today = now.date()
+        week_ago = today - timedelta(days=7)
+        month_ago = today - timedelta(days=30)
+
+        from .models import User
+        from apps.onboarding.models import OnboardingProfile
+        from apps.predictions.models import RiskPrediction
+        from apps.checkin.models import CheckIn
+
+        total_users = User.objects.filter(role='patient').count()
+        total_staff = User.objects.exclude(role='patient').count()
+        facilities_count = User.objects.exclude(facility__isnull=True).values('facility').distinct().count()
+        active_sessions = User.objects.filter(last_login__date=today).count()
+
+        new_users_this_week = User.objects.filter(date_joined__gte=week_ago).count()
+        new_users_this_month = User.objects.filter(date_joined__gte=month_ago).count()
+
+        predictions_today = RiskPrediction.objects.filter(computed_at__date=today).count()
+        predictions_this_week = RiskPrediction.objects.filter(computed_at__gte=week_ago).count()
+
+        checkins_today = CheckIn.objects.filter(date=today).count()
+        checkins_this_week = CheckIn.objects.filter(date__gte=week_ago).count()
+
+        pending_onboardings = OnboardingProfile.objects.filter(
+            onboarding_completed=False,
+            onboarding_step__lt=7
+        ).count()
+
+        return Response({
+            "success": True,
+            "status": 200,
+            "data": {
+                "users": {
+                    "total": total_users,
+                    "total_staff": total_staff,
+                    "new_this_week": new_users_this_week,
+                    "new_this_month": new_users_this_month,
+                },
+                "facilities": {
+                    "count": facilities_count,
+                },
+                "sessions": {
+                    "active_today": active_sessions,
+                },
+                "predictions": {
+                    "today": predictions_today,
+                    "this_week": predictions_this_week,
+                },
+                "checkins": {
+                    "today": checkins_today,
+                    "this_week": checkins_this_week,
+                },
+                "onboardings": {
+                    "pending": pending_onboardings,
+                },
+            },
+        })
+
+
+class AdminUsersListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        tags=["Admin"],
+        summary="List all users",
+    )
+    def get(self, request):
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+
+        role = request.query_params.get('role')
+        status = request.query_params.get('status')
+        search = request.query_params.get('search')
+        page = int(request.query_params.get('page', 1))
+        page_size = int(request.query_params.get('page_size', 20))
+
+        users = User.objects.all()
+
+        if role:
+            users = users.filter(role=role)
+        if status == 'active':
+            users = users.filter(is_active=True)
+        elif status == 'inactive':
+            users = users.filter(is_active=False)
+        if search:
+            users = users.filter(email__icontains=search) | users.filter(full_name__icontains=search)
+
+        total = users.count()
+        start = (page - 1) * page_size
+        end = start + page_size
+        users_page = users[start:end]
+
+        return Response({
+            "success": True,
+            "status": 200,
+            "data": {
+                "users": [
+                    {
+                        "id": str(u.id),
+                        "email": u.email,
+                        "full_name": u.full_name,
+                        "role": u.role,
+                        "facility": u.facility,
+                        "is_active": u.is_active,
+                        "date_joined": u.date_joined.isoformat() if u.date_joined else None,
+                        "last_login": u.last_login.isoformat() if u.last_login else None,
+                    }
+                    for u in users_page
+                ],
+                "total": total,
+                "page": page,
+                "page_size": page_size,
+            },
+        })
+
+
+class ActivityLogsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        tags=["Admin"],
+        summary="Get activity logs",
+    )
+    def get(self, request):
+        from django.contrib.auth import get_user_model
+        from django.utils import timezone
+        from datetime import timedelta
+        from apps.onboarding.models import OnboardingProfile
+
+        User = get_user_model()
+
+        action = request.query_params.get('action')
+        page = int(request.query_params.get('page', 1))
+        page_size = int(request.query_params.get('page_size', 50))
+
+        base_qs = OnboardingProfile.objects.select_related('user').order_by('-updated_at')
+
+        if action == 'registration':
+            base_qs = base_qs.filter(onboarding_step=1)
+        elif action == 'onboarding':
+            base_qs = base_qs.filter(onboarding_step__gt=1, onboarding_completed=False)
+        elif action == 'completed':
+            base_qs = base_qs.filter(onboarding_completed=True)
+
+        total = base_qs.count()
+        start = (page - 1) * page_size
+        end = start + page_size
+        logs_page = base_qs[start:end]
+
+        logs = []
+        for op in logs_page:
+            if op.onboarding_completed:
+                action_type = 'onboarding_completed'
+            elif op.onboarding_step == 1:
+                action_type = 'registration'
+            else:
+                action_type = f'onboarding_step_{op.onboarding_step}'
+
+            logs.append({
+                "id": str(op.id),
+                "action": action_type,
+                "user": op.user.full_name if op.user else 'Unknown',
+                "email": op.user.email if op.user else '',
+                "facility": op.health_centre,
+                "timestamp": op.updated_at.isoformat(),
+            })
+
+        return Response({
+            "success": True,
+            "status": 200,
+            "data": {
+                "logs": logs,
+                "total": total,
+                "page": page,
+                "page_size": page_size,
+            },
+        })
