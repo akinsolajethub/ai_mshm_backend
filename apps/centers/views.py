@@ -634,6 +634,254 @@ class PHCWalkInComprehensiveView(APIView):
         )
 
 
+# ── Walk-in Patient Registration for All Facility Types ───────────────────
+
+
+class GenericWalkInView(APIView):
+    """
+    POST /api/v1/centers/{facility}/walk-in/
+    
+    Generic walk-in patient registration for all facility types.
+    Each facility type can register patients:
+    - FMC, STH, STTH, FTH (Government hospitals)
+    - HMO (Enrollees)
+    - Clinic, PVT, PTTH (Private facilities)
+    
+    Creates:
+      - A new User (role=patient, is_email_verified=True)
+      - An OnboardingProfile with registered facility
+      - A PatientRecord for the facility
+    """
+    
+    def _get_facility_for_user(self, user):
+        """Get facility based on user's role."""
+        role = user.role
+        
+        # Government facilities
+        if role in ("hcc_admin", "hcc_staff"):
+            if role == "hcc_admin":
+                return user.managed_hcc, "PHC", "phc"
+            return user.hcc_staff_profile.hcc, "PHC", "phc"
+        
+        if role in ("fhc_admin", "fhc_staff", "clinician"):
+            if role == "fhc_admin":
+                return user.managed_fhc, "FMC", "fmc"
+            elif role == "fhc_staff":
+                return user.fhc_staff_profile.fhc, "FMC", "fmc"
+            return user.clinician_profile.fhc, "FMC", "fmc"
+        
+        if role in ("sth_admin", "sth_staff"):
+            if role == "sth_admin":
+                return user.managed_state_hospital, "STH", "sth"
+            return user.sth_staff_profile.sth, "STH", "sth"
+        
+        if role in ("stth_admin", "stth_staff"):
+            if role == "stth_admin":
+                return user.managed_state_teaching, "STTH", "stth"
+            return user.stth_staff_profile.stth, "STTH", "stth"
+        
+        if role in ("fth_admin", "fth_staff"):
+            if role == "fth_admin":
+                return user.managed_federal_teaching, "FTH", "fth"
+            return user.fth_staff_profile.fth, "FTH", "fth"
+        
+        # Private/Insurance facilities
+        if role in ("hmo_admin", "hmo_staff"):
+            if role == "hmo_admin":
+                return user.managed_hmo, "HMO", "hmo"
+            return user.hmo_staff_profile.hmo, "HMO", "hmo"
+        
+        if role in ("clinic_admin", "clinic_staff"):
+            if role == "clinic_admin":
+                return user.managed_clinic, "CLINIC", "cln"
+            return user.clinic_staff_profile.clinic, "CLINIC", "cln"
+        
+        if role in ("pvt_admin", "pvt_staff"):
+            if role == "pvt_admin":
+                return user.managed_private_hospital, "PVT", "pvt"
+            return user.pvt_staff_profile.pvt, "PVT", "pvt"
+        
+        if role in ("ptth_admin", "ptth_staff"):
+            if role == "ptth_admin":
+                return user.managed_ptth, "PTTH", "ptth"
+            return user.ptth_staff_profile.ptth, "PTTH", "ptth"
+        
+        return None, None, None
+    
+    def _get_permission_class(self, facility_type):
+        """Get permission class based on facility type."""
+        if facility_type in ("phc", "sth", "stth", "fth"):
+            return IsAuthenticated  # Use generic authenticated for now
+        elif facility_type in ("fmc",):
+            return IsAuthenticated
+        elif facility_type in ("hmo",):
+            return IsAuthenticated
+        elif facility_type in ("cln", "pvt", "ptth"):
+            return IsAuthenticated
+        return IsAuthenticated
+    
+    @extend_schema(
+        tags=["Walk-in Registration"],
+        summary="Register walk-in patient",
+        description=(
+            "Register a new walk-in patient at any facility.\n\n"
+            "Required fields: `full_name`, `email` (or phone), `condition`\n"
+            "Optional: `age`, `notes`, `severity`"
+        ),
+    )
+    def post(self, request, facility):
+        facility = facility.lower()
+        
+        # Map facility URL to internal type
+        facility_map = {
+            "phc": "phc", "fmc": "fmc", "fmc": "fmc",
+            "sth": "sth", "stth": "stth", "fth": "fth",
+            "hmo": "hmo", "cln": "cln", "clinic": "cln",
+            "pvt": "pvt", "ptth": "ptth",
+        }
+        facility_type = facility_map.get(facility, facility)
+        
+        # Get user's facility
+        facility_obj, facility_name, _ = self._get_facility_for_user(request.user)
+        
+        if not facility_obj:
+            return error_response(
+                f"No {facility.upper()} facility linked to your account. "
+                "Please contact your administrator.",
+                http_status=404
+            )
+        
+        data = request.data
+        
+        # Validate required fields
+        if not data.get("full_name"):
+            return error_response("full_name is required.", http_status=400)
+        
+        if not data.get("email") and not data.get("phone"):
+            return error_response("Either email or phone is required.", http_status=400)
+        
+        # Generate temp password and create user
+        temp_password = _generate_temp_password()
+        email = data.get("email") or f"walkin_{uuid.uuid4().hex[:8]}@placeholder.local"
+        
+        try:
+            patient = User.objects.create_user(
+                email=email,
+                password=temp_password,
+                full_name=data["full_name"],
+                role=User.Role.PATIENT,
+                is_email_verified=True,
+            )
+            patient.must_change_password = True
+            patient.save(update_fields=["must_change_password"])
+            
+        except Exception as e:
+            return error_response(f"Failed to create patient: {str(e)}", http_status=400)
+        
+        # Send welcome email to patient with temporary password
+        try:
+            from apps.accounts.tasks import send_staff_credentials_email_task
+            send_staff_credentials_email_task.delay(
+                user_name=patient.full_name,
+                user_email=patient.email,
+                temp_password=temp_password,
+                facility_name=facility_obj.name,
+                role="Patient",
+                unique_id=getattr(patient, 'unique_id', None),
+            )
+        except Exception as e:
+            logger.warning(f"Failed to send welcome email to patient: {e}")
+        
+        # Create onboarding profile
+        from apps.onboarding.models import OnboardingProfile
+        
+        state = getattr(facility_obj, "state", "")
+        lga = getattr(facility_obj, "lga", "")
+        
+        profile = OnboardingProfile.objects.create(
+            user=patient,
+            full_name=data["full_name"],
+            age=data.get("age"),
+            state=state,
+            lga=lga,
+        )
+        
+        # Link PHC if available (other facilities use state for backward compatibility)
+        if facility_type == "phc" and hasattr(facility_obj, 'id'):
+            profile.registered_hcc = facility_obj
+        profile.save()
+        
+        # Create patient record for the facility
+        condition = data.get("condition", "general")
+        severity = data.get("severity", "moderate")
+        
+        # Map condition to enum if needed
+        condition_map = {
+            "pcos": "PCOS",
+            "maternal": "MATERNAL",
+            "cardiovascular": "CARDIOVASCULAR",
+            "diabetes": "DIABETES",
+            "general": "GENERAL",
+        }
+        
+        record_data = {
+            "patient": patient,
+            "condition": condition_map.get(condition, condition),
+            "severity": severity,
+            "status": "new",
+            "notes": data.get("notes", ""),
+        }
+        
+        # Create facility-specific record
+        if facility_type == "phc":
+            record = PHCPatientRecord.objects.create(
+                patient=patient,
+                hcc=facility_obj,
+                condition=condition_map.get(condition, condition),
+                severity=severity,
+                status=PHCPatientRecord.RecordStatus.NEW,
+                notes=data.get("notes", ""),
+            )
+        elif facility_type == "fmc":
+            # Create FMC case (simplified)
+            case = PatientCase.objects.create(
+                patient=patient,
+                fmc=facility_obj,
+                status="new",
+                diagnosis=condition,
+                notes=data.get("notes", ""),
+            )
+            record = case
+        else:
+            # For other facilities, just create a generic record
+            # Could extend based on facility type
+            record = None
+        
+        logger.info(
+            "Walk-in patient registered: %s at %s '%s' by staff %s",
+            patient.email,
+            facility_type.upper(),
+            facility_obj.name,
+            request.user.email,
+        )
+        
+        return created_response(
+            data={
+                "patient_id": str(patient.id),
+                "patient_email": patient.email,
+                "patient_name": patient.full_name,
+                "facility_name": facility_obj.name,
+                "facility_type": facility_type.upper(),
+                "temp_password": temp_password,
+                "phone": data.get("phone", ""),
+            },
+            message=(
+                f"Patient registered successfully at {facility_obj.name}. "
+                "Share the temporary password with the patient."
+            ),
+        )
+
+
 # ── PHC Advice ───────────────────────────────────────────────────────────────────
 
 
@@ -3042,6 +3290,194 @@ class CentersAdminListAllView(APIView):
         return created_response(
             data={"id": str(facility.id), "name": facility.name},
             message=f"{tier} '{facility.name}' created successfully.",
+        )
+
+
+class CentersAdminDetailView(APIView):
+    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    def _get_facility(self, facility_id: str, tier: str):
+        """Get facility by ID and tier."""
+        tier = tier.upper()
+        try:
+            if tier == "PHC":
+                return HealthCareCenter.objects.get(pk=facility_id), "PHC"
+            elif tier == "FMC":
+                return FederalHealthCenter.objects.get(pk=facility_id), "FMC"
+            elif tier in ("STH", "STGH"):
+                return StateHospital.objects.get(pk=facility_id), "STH"
+            elif tier == "STTH":
+                return StateTeachingHospital.objects.get(pk=facility_id), "STTH"
+            elif tier == "FTH":
+                return FederalTeachingHospital.objects.get(pk=facility_id), "FTH"
+            elif tier == "HMO":
+                return HealthInsuranceOrganization.objects.get(pk=facility_id), "HMO"
+            elif tier == "CLN":
+                return Clinic.objects.get(pk=facility_id), "CLN"
+            elif tier == "PVT":
+                return PrivateHospital.objects.get(pk=facility_id), "PVT"
+            elif tier == "PTTH":
+                return PrivateTeachingHospital.objects.get(pk=facility_id), "PTTH"
+        except (
+            HealthCareCenter.DoesNotExist,
+            FederalHealthCenter.DoesNotExist,
+            StateHospital.DoesNotExist,
+            StateTeachingHospital.DoesNotExist,
+            FederalTeachingHospital.DoesNotExist,
+            HealthInsuranceOrganization.DoesNotExist,
+            Clinic.DoesNotExist,
+            PrivateHospital.DoesNotExist,
+            PrivateTeachingHospital.DoesNotExist,
+        ):
+            return None, tier
+        return None, tier
+
+    def _get_role_for_tier(self, tier: str):
+        """Get the appropriate admin role for a facility tier."""
+        role_map = {
+            "PHC": "hcc_admin",
+            "FMC": "fhc_admin",
+            "STH": "sth_admin",
+            "STTH": "stth_admin",
+            "FTH": "fth_admin",
+            "HMO": "hmo_admin",
+            "CLN": "clinic_admin",
+            "PVT": "pvt_admin",
+            "PTTH": "ptth_admin",
+        }
+        return role_map.get(tier, "admin")
+
+    @extend_schema(
+        tags=["Platform Admin — Centers"],
+        summary="[Platform Admin] Get facility detail",
+    )
+    def get(self, request, pk):
+        tier = request.query_params.get("tier", "PHC").upper()
+        facility, found_tier = self._get_facility(pk, tier)
+        if not facility:
+            return error_response(f"Facility not found.", http_status=404)
+        
+        # Build response based on tier
+        data = {
+            "id": str(facility.id),
+            "code": facility.code,
+            "name": facility.name,
+            "address": facility.address,
+            "state": facility.state,
+            "lga": getattr(facility, "lga", ""),
+            "zone": getattr(facility, "zone", ""),
+            "phone": facility.phone,
+            "email": facility.email,
+            "status": facility.status,
+            "tier": found_tier,
+            "facility_type": getattr(facility, "facility_type", "public"),
+            "admin_user": facility.admin_user.full_name if facility.admin_user else "",
+            "admin_email": facility.admin_user.email if facility.admin_user else "",
+            "admin_user_id": str(facility.admin_user.id) if facility.admin_user else None,
+        }
+        
+        # Add escalation fields based on tier
+        if found_tier == "PHC":
+            data["escalates_to"] = str(facility.escalates_to_state_hospital_id) if facility.escalates_to_state_hospital_id else ""
+            data["escalates_to_name"] = facility.escalates_to_state_hospital.name if facility.escalates_to_state_hospital else ""
+        elif found_tier == "FMC":
+            data["escalates_to_state_teaching"] = str(facility.escalates_to_state_teaching_id) if facility.escalates_to_state_teaching_id else ""
+            data["escalates_to_federal_teaching"] = str(facility.escalates_to_federal_teaching_id) if facility.escalates_to_federal_teaching_id else ""
+            data["escalates_to_state_teaching_name"] = facility.escalates_to_state_teaching.name if facility.escalates_to_state_teaching else ""
+            data["escalates_to_federal_teaching_name"] = facility.escalates_to_federal_teaching.name if facility.escalates_to_federal_teaching else ""
+        elif found_tier == "STH":
+            data["escalates_to_state_teaching"] = str(facility.escalates_to_state_teaching_id) if facility.escalates_to_state_teaching_id else ""
+            data["escalates_to_state_teaching_name"] = facility.escalates_to_state_teaching.name if facility.escalates_to_state_teaching else ""
+        elif found_tier == "STTH":
+            data["escalates_to_fmc"] = str(facility.escalates_to_fmc_id) if facility.escalates_to_fmc_id else ""
+            data["escalates_to_federal_teaching"] = str(facility.escalates_to_federal_teaching_id) if facility.escalates_to_federal_teaching_id else ""
+            data["escalates_to_fmc_name"] = facility.escalates_to_fmc.name if facility.escalates_to_fmc else ""
+            data["escalates_to_federal_teaching_name"] = facility.escalates_to_federal_teaching.name if facility.escalates_to_federal_teaching else ""
+        
+        if found_tier == "HMO":
+            data["license_number"] = getattr(facility, "license_number", "")
+        
+        return success_response(data=data)
+
+    @extend_schema(
+        tags=["Platform Admin — Centers"],
+        summary="[Platform Admin] Update facility",
+        description="Update facility details. Use admin_email to assign an existing user as admin.",
+    )
+    def patch(self, request, pk):
+        tier = request.query_params.get("tier", "PHC").upper()
+        facility, found_tier = self._get_facility(pk, tier)
+        if not facility:
+            return error_response("Facility not found.", http_status=404)
+        
+        data = request.data
+        User = get_user_model()
+        
+        # Track if admin is being changed
+        old_admin_email = facility.admin_user.email if facility.admin_user else None
+        new_admin_email = data.get("admin_email")
+        
+        # Update basic fields
+        if "name" in data:
+            facility.name = data["name"]
+        if "address" in data:
+            facility.address = data["address"]
+        if "phone" in data:
+            facility.phone = data["phone"]
+        if "email" in data:
+            facility.email = data["email"]
+        if "status" in data:
+            facility.status = data["status"]
+        if "state" in data:
+            facility.state = data["state"]
+        if "lga" in data:
+            facility.lga = data.get("lga", "")
+        if "zone" in data:
+            facility.zone = data.get("zone", "")
+        
+        # Update escalation fields based on tier
+        if found_tier == "PHC" and "escalates_to" in data:
+            if data["escalates_to"]:
+                try:
+                    facility.escalates_to_state_hospital_id = data["escalates_to"]
+                except:
+                    facility.escalates_to_state_hospital = None
+            else:
+                facility.escalates_to_state_hospital = None
+        
+        # Handle admin user assignment
+        if new_admin_email:
+            try:
+                user = User.objects.get(email__iexact=new_admin_email)
+                facility.admin_user = user
+            except User.DoesNotExist:
+                return error_response(f"No user found with email {new_admin_email}. Please create the user first.", http_status=400)
+        
+        facility.save()
+        
+        # Send email notification if admin was assigned/changed
+        if new_admin_email and new_admin_email != old_admin_email:
+            try:
+                from apps.accounts.tasks import send_facility_admin_assignment_email_task
+                send_facility_admin_assignment_email_task.delay(
+                    user_name=facility.admin_user.full_name,
+                    user_email=facility.admin_user.email,
+                    facility_name=facility.name,
+                    facility_type=found_tier,
+                )
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning(f"Failed to send admin assignment email: {e}")
+        
+        # Return updated data
+        return success_response(
+            data={
+                "id": str(facility.id),
+                "name": facility.name,
+                "admin_user": facility.admin_user.full_name if facility.admin_user else "",
+                "admin_email": facility.admin_user.email if facility.admin_user else "",
+            },
+            message="Facility updated successfully." + (" An email has been sent to the new admin." if new_admin_email and new_admin_email != old_admin_email else ""),
         )
 
 

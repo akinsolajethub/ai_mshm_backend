@@ -50,13 +50,13 @@ class FederalHealthCenterPublicSerializer(serializers.ModelSerializer):
 class HealthCareCenterSerializer(serializers.ModelSerializer):
     """
     Full PHC record for HCC Admin and Platform Admin.
-    escalates_to_name: read-only name of the linked FMC.
-    Platform Admin can set escalates_to. HCC Admin cannot.
+    escalates_to_state_hospital_name: read-only name of the linked State Hospital.
+    Platform Admin can set escalates_to_state_hospital. HCC Admin cannot.
     """
 
     staff_count = serializers.SerializerMethodField()
-    escalates_to_name = serializers.CharField(
-        source="escalates_to.name",
+    escalates_to_state_hospital_name = serializers.CharField(
+        source="escalates_to_state_hospital.name",
         read_only=True,
         default=None,
     )
@@ -74,14 +74,14 @@ class HealthCareCenterSerializer(serializers.ModelSerializer):
             "email",
             "website",
             "status",
-            "escalates_to",
-            "escalates_to_name",
+            "escalates_to_state_hospital",
+            "escalates_to_state_hospital_name",
             "notify_on_severe",
             "notify_on_very_severe",
             "staff_count",
             "created_at",
         ]
-        read_only_fields = ["id", "created_at", "staff_count", "escalates_to_name"]
+        read_only_fields = ["id", "created_at", "staff_count", "escalates_to_state_hospital_name"]
 
     @extend_schema_field(serializers.IntegerField())
     def get_staff_count(self, obj):

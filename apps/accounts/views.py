@@ -500,6 +500,107 @@ class AdminUsersListView(APIView):
             },
         })
 
+    @extend_schema(
+        tags=["Admin"],
+        request={
+            "application/json": {
+                "type": "object",
+                "properties": {
+                    "email": {"type": "string", "format": "email"},
+                    "full_name": {"type": "string"},
+                    "password": {"type": "string", "minLength": 8},
+                    "confirm_password": {"type": "string"},
+                    "role": {"type": "string"},
+                    "is_email_verified": {"type": "boolean"},
+                },
+                "required": ["email", "full_name", "password", "confirm_password", "role"],
+            }
+        },
+        summary="Create a new user",
+        description="Create a new user account with a specified role.",
+    )
+    def post(self, request):
+        from django.contrib.auth import get_user_model
+        from django.contrib.auth.password_validation import validate_password
+        from rest_framework import serializers
+
+        User = get_user_model()
+        data = request.data
+
+        # Validate required fields
+        required_fields = ["email", "full_name", "password", "confirm_password", "role"]
+        for field in required_fields:
+            if not data.get(field):
+                return Response({
+                    "success": False,
+                    "status": 400,
+                    "message": f"{field} is required.",
+                }, status=400)
+
+        # Validate password match
+        if data.get("password") != data.get("confirm_password"):
+            return Response({
+                "success": False,
+                "status": 400,
+                "message": "Passwords do not match.",
+            }, status=400)
+
+        # Validate password strength
+        try:
+            validate_password(data.get("password"), User)
+        except serializers.ValidationError as e:
+            return Response({
+                "success": False,
+                "status": 400,
+                "message": str(e.messages[0]) if hasattr(e, 'messages') else str(e),
+            }, status=400)
+
+        # Check if email already exists
+        if User.objects.filter(email__iexact=data.get("email")).exists():
+            return Response({
+                "success": False,
+                "status": 400,
+                "message": "A user with this email already exists.",
+            }, status=400)
+
+        # Validate role
+        valid_roles = [role.value for role in User.Role]
+        if data.get("role") not in valid_roles:
+            return Response({
+                "success": False,
+                "status": 400,
+                "message": f"Invalid role. Must be one of: {', '.join(valid_roles)}",
+            }, status=400)
+
+        # Create user
+        try:
+            user = User.objects.create_user(
+                email=data.get("email"),
+                password=data.get("password"),
+                full_name=data.get("full_name"),
+                role=data.get("role"),
+                is_email_verified=data.get("is_email_verified", True),
+                is_active=True,
+            )
+
+            return Response({
+                "success": True,
+                "status": 201,
+                "message": "User created successfully.",
+                "data": {
+                    "id": str(user.id),
+                    "email": user.email,
+                    "full_name": user.full_name,
+                    "role": user.role,
+                },
+            }, status=201)
+        except Exception as e:
+            return Response({
+                "success": False,
+                "status": 500,
+                "message": f"Failed to create user: {str(e)}",
+            }, status=500)
+
 
 class AdminUserDetailView(APIView):
     permission_classes = [IsAuthenticated]

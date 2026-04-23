@@ -110,3 +110,58 @@ def send_staff_credentials_email_task(
     )
     _send_email(user_email, f"Your {settings.APP_NAME} Login Credentials", html, plain)
     logger.info("Staff credentials email sent to %s", user_email)
+
+
+@shared_task(
+    bind=True,
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    max_retries=3,
+    name="accounts.send_facility_admin_assignment_email",
+)
+def send_facility_admin_assignment_email_task(
+    self,
+    user_name: str,
+    user_email: str,
+    facility_name: str,
+    facility_type: str,
+):
+    """
+    Send email when a user is assigned as admin to a facility.
+    """
+    login_url = getattr(settings, 'FRONTEND_URL', 'https://ai-mshm.vercel.app')
+    
+    # Determine login path based on facility type
+    login_paths = {
+        'PHC': '/phc/login',
+        'FMC': '/fmc/login',
+        'STH': '/sth/login',
+        'STTH': '/stth/login',
+        'FTH': '/fth/login',
+        'HMO': '/hmo/login',
+        'CLN': '/cln/login',
+        'PVT': '/pvt/login',
+        'PTTH': '/ptth/login',
+    }
+    login_path = login_paths.get(facility_type, '/login')
+    
+    html = render_to_string(
+        "emails/facility_admin_assignment.html",
+        {
+            "user_name": user_name,
+            "facility_name": facility_name,
+            "facility_type": facility_type,
+            "login_url": f"{login_url}{login_path}",
+            "app_name": settings.APP_NAME,
+        },
+    )
+    plain = (
+        f"Hi {user_name},\n\n"
+        f"You have been assigned as Admin for {facility_name} ({facility_type}).\n\n"
+        f"You can now login to manage this facility.\n\n"
+        f"Login URL: {login_url}{login_path}\n\n"
+        f"If you have any questions, please contact your system administrator.\n\n"
+        f"— The {settings.APP_NAME} Team"
+    )
+    _send_email(user_email, f"You've been assigned as Admin for {facility_name}", html, plain)
+    logger.info("Facility admin assignment email sent to %s for facility %s", user_email, facility_name)

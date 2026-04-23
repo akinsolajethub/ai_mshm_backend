@@ -114,8 +114,10 @@ from .views import (
     FHCAdminListView,
     FHCAdminDetailView,
     CentersAdminListAllView,
+    CentersAdminDetailView,
     CountryListView,
     StateListView,
+    GenericWalkInView,
 )
 
 app_name = "centers"
@@ -134,6 +136,15 @@ urlpatterns = [
         PHCWalkInComprehensiveView.as_view(),
         name="phc-walk-in-comprehensive",
     ),
+    # Walk-in for All Facilities
+    path("fmc/walk-in/", GenericWalkInView.as_view(), name="fmc-walk-in"),
+    path("sth/walk-in/", GenericWalkInView.as_view(), name="sth-walk-in"),
+    path("stth/walk-in/", GenericWalkInView.as_view(), name="stth-walk-in"),
+    path("fth/walk-in/", GenericWalkInView.as_view(), name="fth-walk-in"),
+    path("hmo/walk-in/", GenericWalkInView.as_view(), name="hmo-walk-in"),
+    path("cln/walk-in/", GenericWalkInView.as_view(), name="cln-walk-in"),
+    path("pvt/walk-in/", GenericWalkInView.as_view(), name="pvt-walk-in"),
+    path("ptth/walk-in/", GenericWalkInView.as_view(), name="ptth-walk-in"),
     # PHC Advice & Analytics
     path("phc/advice/", PHCSendAdviceView.as_view(), name="phc-advice"),
     path("phc/advice/history/", PHCAdviceHistoryView.as_view(), name="phc-advice-history"),
@@ -285,6 +296,7 @@ urlpatterns = [
     path("admin/fmc/", FHCAdminListView.as_view(), name="admin-fmc-list"),
     path("admin/fmc/<uuid:pk>/", FHCAdminDetailView.as_view(), name="admin-fmc-detail"),
     path("admin/centers/", CentersAdminListAllView.as_view(), name="admin-centers-list"),
+    path("admin/centers/<uuid:pk>/", CentersAdminDetailView.as_view(), name="admin-centers-detail"),
     # ── Locations ───────────────────────────────────────────────────────────────
     path("countries/", CountryListView.as_view(), name="country-list"),
     path("states/", StateListView.as_view(), name="state-list"),
