@@ -485,6 +485,7 @@ class PHCWalkInView(APIView):
             user=patient,
             full_name=data["full_name"],
             age=data.get("age"),
+            gender=data.get("gender", ""),
             state=hcc.state,
             lga=hcc.lga,
             registered_hcc=hcc,
@@ -814,6 +815,7 @@ class GenericWalkInView(APIView):
         profile, _ = OnboardingProfile.objects.get_or_create(user=patient)
         profile.full_name = data["full_name"]
         profile.age = data.get("age")
+        profile.gender = data.get("gender", "")
         profile.state = state
         profile.lga = lga
         

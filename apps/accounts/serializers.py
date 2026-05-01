@@ -209,6 +209,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
 
     avatar_url = serializers.SerializerMethodField()
     center_info = serializers.SerializerMethodField()
+    gender = serializers.SerializerMethodField(help_text="Patient gender from onboarding profile (male/female).")
     id = serializers.CharField(read_only=True)
 
     class Meta:
@@ -224,6 +225,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
             "must_change_password",
             "onboarding_completed",
             "onboarding_step",
+            "gender",
             "center_info",
             "date_joined",
         ]
@@ -234,6 +236,13 @@ class UserProfileSerializer(serializers.ModelSerializer):
         if obj.avatar and request:
             return request.build_absolute_uri(obj.avatar.url)
         return None
+
+    def get_gender(self, obj):
+        """Return gender from onboarding profile if it exists."""
+        try:
+            return obj.onboarding_profile.gender or None
+        except Exception:
+            return None
 
     def get_center_info(self, obj):
         """Returns facility context for facility-affiliated roles."""
