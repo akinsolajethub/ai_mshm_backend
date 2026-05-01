@@ -794,6 +794,7 @@ class GenericWalkInView(APIView):
             return error_response(f"Failed to create patient: {str(e)}", http_status=400)
         
         # Send welcome email to patient with temporary password and login link
+        patient.refresh_from_db(fields=["unique_id"])
         try:
             from apps.accounts.tasks import send_patient_welcome_email_task
             send_patient_welcome_email_task.delay(
@@ -801,7 +802,7 @@ class GenericWalkInView(APIView):
                 user_email=patient.email,
                 temp_password=temp_password,
                 facility_name=facility_obj.name,
-                unique_id=getattr(patient, 'unique_id', None),
+                unique_id=patient.unique_id,
             )
         except Exception as e:
             logger.warning(f"Failed to send patient welcome email: {e}")
@@ -873,6 +874,7 @@ class GenericWalkInView(APIView):
         return created_response(
             data={
                 "patient_id": str(patient.id),
+                "unique_id": patient.unique_id,
                 "patient_email": patient.email,
                 "patient_name": patient.full_name,
                 "facility_name": facility_obj.name,
