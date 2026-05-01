@@ -481,15 +481,15 @@ class PHCWalkInView(APIView):
         # Create onboarding profile and link to this PHC
         from apps.onboarding.models import OnboardingProfile
 
-        profile = OnboardingProfile.objects.create(
-            user=patient,
-            full_name=data["full_name"],
-            age=data.get("age"),
-            gender=data.get("gender", ""),
-            state=hcc.state,
-            lga=hcc.lga,
-            registered_hcc=hcc,
-        )
+        profile, _ = OnboardingProfile.objects.get_or_create(user=patient)
+        profile.full_name = data["full_name"]
+        profile.age = data.get("age")
+        profile.gender = data.get("gender", "")
+        profile.phone_number = data.get("phone", "")
+        profile.state = hcc.state
+        profile.lga = hcc.lga
+        profile.registered_hcc = hcc
+        profile.save()
 
         # Create PHC patient record
         condition_map = {
@@ -583,23 +583,22 @@ class PHCWalkInComprehensiveView(APIView):
 
         from apps.onboarding.models import OnboardingProfile
 
-        profile = OnboardingProfile.objects.create(
-            user=patient,
-            full_name=full_name,
-            state=hcc.state,
-            lga=hcc.lga,
-            registered_hcc=hcc,
-            height_cm=data.get("height_cm"),
-            weight_kg=data.get("weight_kg"),
-            cycle_regularity=data.get("cycle_regularity", ""),
-            cycle_length_days=data.get("typical_cycle_length"),
-            periods_per_year=data.get("periods_per_year"),
-            has_skin_changes=True if data.get("acanthosis_nigricans") == "yes" else False,
-        )
-
+        profile, _ = OnboardingProfile.objects.get_or_create(user=patient)
+        profile.full_name = full_name
+        profile.gender = data.get("gender", "")
+        profile.phone_number = data.get("phone", "")
+        profile.state = hcc.state
+        profile.lga = hcc.lga
+        profile.registered_hcc = hcc
+        profile.height_cm = data.get("height_cm")
+        profile.weight_kg = data.get("weight_kg")
+        profile.cycle_regularity = data.get("cycle_regularity", "")
+        profile.cycle_length_days = data.get("typical_cycle_length")
+        profile.periods_per_year = data.get("periods_per_year")
+        profile.has_skin_changes = True if data.get("acanthosis_nigricans") == "yes" else False
         if profile.height_cm and profile.weight_kg:
             profile.bmi = round(profile.weight_kg / ((profile.height_cm / 100) ** 2), 1)
-            profile.save(update_fields=["bmi"])
+        profile.save()
 
         condition_map = {
             "pcos": PHCPatientRecord.Condition.PCOS,
@@ -817,6 +816,7 @@ class GenericWalkInView(APIView):
         profile.full_name = data["full_name"]
         profile.age = data.get("age")
         profile.gender = data.get("gender", "")
+        profile.phone_number = data.get("phone", "")
         profile.state = state
         profile.lga = lga
         
