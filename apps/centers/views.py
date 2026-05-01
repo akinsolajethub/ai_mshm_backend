@@ -505,8 +505,18 @@ class PHCWalkInView(APIView):
             notes=data.get("notes", ""),
         )
 
-        # TODO: Send temp_password to patient via SMS/email
-        # AuthService.send_walkin_welcome(patient, temp_password)
+        # Send welcome email to patient with temporary password and login link
+        try:
+            from apps.accounts.tasks import send_patient_welcome_email_task
+            send_patient_welcome_email_task.delay(
+                user_name=patient.full_name,
+                user_email=patient.email,
+                temp_password=temp_password,
+                facility_name=hcc.name,
+                unique_id=getattr(patient, 'unique_id', None),
+            )
+        except Exception as e:
+            logger.warning(f"Failed to send patient welcome email: {e}")
 
         logger.info(
             "Walk-in patient registered: %s at PHC '%s' by staff %s",
@@ -657,54 +667,58 @@ class GenericWalkInView(APIView):
         """Get facility based on user's role."""
         role = user.role
         
-        # Government facilities
-        if role in ("hcc_admin", "hcc_staff"):
-            if role == "hcc_admin":
-                return user.managed_hcc, "PHC", "phc"
-            return user.hcc_staff_profile.hcc, "PHC", "phc"
-        
-        if role in ("fhc_admin", "fhc_staff", "clinician"):
-            if role == "fhc_admin":
-                return user.managed_fhc, "FMC", "fmc"
-            elif role == "fhc_staff":
-                return user.fhc_staff_profile.fhc, "FMC", "fmc"
-            return user.clinician_profile.fhc, "FMC", "fmc"
-        
-        if role in ("sth_admin", "sth_staff"):
-            if role == "sth_admin":
-                return user.managed_state_hospital, "STH", "sth"
-            return user.sth_staff_profile.sth, "STH", "sth"
-        
-        if role in ("stth_admin", "stth_staff"):
-            if role == "stth_admin":
-                return user.managed_state_teaching, "STTH", "stth"
-            return user.stth_staff_profile.stth, "STTH", "stth"
-        
-        if role in ("fth_admin", "fth_staff"):
-            if role == "fth_admin":
-                return user.managed_federal_teaching, "FTH", "fth"
-            return user.fth_staff_profile.fth, "FTH", "fth"
-        
-        # Private/Insurance facilities
-        if role in ("hmo_admin", "hmo_staff"):
-            if role == "hmo_admin":
-                return user.managed_hmo, "HMO", "hmo"
-            return user.hmo_staff_profile.hmo, "HMO", "hmo"
-        
-        if role in ("clinic_admin", "clinic_staff"):
-            if role == "clinic_admin":
-                return user.managed_clinic, "CLINIC", "cln"
-            return user.clinic_staff_profile.clinic, "CLINIC", "cln"
-        
-        if role in ("pvt_admin", "pvt_staff"):
-            if role == "pvt_admin":
-                return user.managed_private_hospital, "PVT", "pvt"
-            return user.pvt_staff_profile.pvt, "PVT", "pvt"
-        
-        if role in ("ptth_admin", "ptth_staff"):
-            if role == "ptth_admin":
-                return user.managed_ptth, "PTTH", "ptth"
-            return user.ptth_staff_profile.ptth, "PTTH", "ptth"
+        try:
+            # Government facilities
+            if role in ("hcc_admin", "hcc_staff"):
+                if role == "hcc_admin":
+                    return user.managed_hcc, "PHC", "phc"
+                return user.hcc_staff_profile.hcc, "PHC", "phc"
+            
+            if role in ("fhc_admin", "fhc_staff", "clinician"):
+                if role == "fhc_admin":
+                    return user.managed_fhc, "FMC", "fmc"
+                elif role == "fhc_staff":
+                    return user.fhc_staff_profile.fhc, "FMC", "fmc"
+                return user.clinician_profile.fhc, "FMC", "fmc"
+            
+            if role in ("sth_admin", "sth_staff"):
+                if role == "sth_admin":
+                    return user.managed_state_hospital, "STH", "sth"
+                return user.sth_staff_profile.sth, "STH", "sth"
+            
+            if role in ("stth_admin", "stth_staff"):
+                if role == "stth_admin":
+                    return user.managed_state_teaching, "STTH", "stth"
+                return user.stth_staff_profile.stth, "STTH", "stth"
+            
+            if role in ("fth_admin", "fth_staff"):
+                if role == "fth_admin":
+                    return user.managed_federal_teaching, "FTH", "fth"
+                return user.fth_staff_profile.fth, "FTH", "fth"
+            
+            # Private/Insurance facilities
+            if role in ("hmo_admin", "hmo_staff"):
+                if role == "hmo_admin":
+                    return user.managed_hmo, "HMO", "hmo"
+                return user.hmo_staff_profile.hmo, "HMO", "hmo"
+            
+            if role in ("clinic_admin", "clinic_staff"):
+                if role == "clinic_admin":
+                    return user.managed_clinic, "CLINIC", "cln"
+                return user.clinic_staff_profile.clinic, "CLINIC", "cln"
+            
+            if role in ("pvt_admin", "pvt_staff"):
+                if role == "pvt_admin":
+                    return user.managed_private_hospital, "PVT", "pvt"
+                return user.pvt_staff_profile.pvt, "PVT", "pvt"
+            
+            if role in ("ptth_admin", "ptth_staff"):
+                if role == "ptth_admin":
+                    return user.managed_ptth, "PTTH", "ptth"
+                return user.ptth_staff_profile.ptth, "PTTH", "ptth"
+        except Exception as e:
+            logger.warning(f"Failed to get facility for user {user.email}: {e}")
+            return None, None, None
         
         return None, None, None
     
@@ -778,33 +792,30 @@ class GenericWalkInView(APIView):
         except Exception as e:
             return error_response(f"Failed to create patient: {str(e)}", http_status=400)
         
-        # Send welcome email to patient with temporary password
+        # Send welcome email to patient with temporary password and login link
         try:
-            from apps.accounts.tasks import send_staff_credentials_email_task
-            send_staff_credentials_email_task.delay(
+            from apps.accounts.tasks import send_patient_welcome_email_task
+            send_patient_welcome_email_task.delay(
                 user_name=patient.full_name,
                 user_email=patient.email,
                 temp_password=temp_password,
                 facility_name=facility_obj.name,
-                role="Patient",
                 unique_id=getattr(patient, 'unique_id', None),
             )
         except Exception as e:
-            logger.warning(f"Failed to send welcome email to patient: {e}")
+            logger.warning(f"Failed to send patient welcome email: {e}")
         
-        # Create onboarding profile
+        # Create onboarding profile (signal already created one — update it)
         from apps.onboarding.models import OnboardingProfile
         
         state = getattr(facility_obj, "state", "")
         lga = getattr(facility_obj, "lga", "")
         
-        profile = OnboardingProfile.objects.create(
-            user=patient,
-            full_name=data["full_name"],
-            age=data.get("age"),
-            state=state,
-            lga=lga,
-        )
+        profile, _ = OnboardingProfile.objects.get_or_create(user=patient)
+        profile.full_name = data["full_name"]
+        profile.age = data.get("age")
+        profile.state = state
+        profile.lga = lga
         
         # Link PHC if available (other facilities use state for backward compatibility)
         if facility_type == "phc" and hasattr(facility_obj, 'id'):
@@ -812,44 +823,36 @@ class GenericWalkInView(APIView):
         profile.save()
         
         # Create patient record for the facility
-        condition = data.get("condition", "general")
+        condition = data.get("condition", "pcos")
         severity = data.get("severity", "moderate")
         
-        # Map condition to enum if needed
+        # Map condition to enum
         condition_map = {
-            "pcos": "PCOS",
-            "maternal": "MATERNAL",
-            "cardiovascular": "CARDIOVASCULAR",
-            "diabetes": "DIABETES",
-            "general": "GENERAL",
+            "pcos": PatientCase.Condition.PCOS,
+            "maternal": PatientCase.Condition.MATERNAL,
+            "cardiovascular": PatientCase.Condition.CARDIOVASCULAR,
         }
-        
-        record_data = {
-            "patient": patient,
-            "condition": condition_map.get(condition, condition),
-            "severity": severity,
-            "status": "new",
-            "notes": data.get("notes", ""),
-        }
+        mapped_condition = condition_map.get(condition, PatientCase.Condition.PCOS)
         
         # Create facility-specific record
         if facility_type == "phc":
             record = PHCPatientRecord.objects.create(
                 patient=patient,
                 hcc=facility_obj,
-                condition=condition_map.get(condition, condition),
+                condition=mapped_condition,
                 severity=severity,
                 status=PHCPatientRecord.RecordStatus.NEW,
                 notes=data.get("notes", ""),
             )
         elif facility_type == "fmc":
-            # Create FMC case (simplified)
+            # Create FMC case
             case = PatientCase.objects.create(
                 patient=patient,
-                fmc=facility_obj,
-                status="new",
-                diagnosis=condition,
-                notes=data.get("notes", ""),
+                fhc=facility_obj,
+                condition=mapped_condition,
+                severity=severity,
+                status=PatientCase.CaseStatus.OPEN,
+                fmc_notes=data.get("notes", ""),
             )
             record = case
         else:

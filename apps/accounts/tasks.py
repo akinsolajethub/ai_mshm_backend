@@ -13,6 +13,9 @@ logger = logging.getLogger(__name__)
 
 
 def _send_email(to: str, subject: str, html: str, plain: str):
+    if not settings.RESEND_API_KEY:
+        logger.warning("RESEND_API_KEY not configured — skipping email to %s (subject: %s)", to, subject)
+        return
     resend.api_key = settings.RESEND_API_KEY
     resend.Emails.send(
         {
@@ -165,3 +168,49 @@ def send_facility_admin_assignment_email_task(
     )
     _send_email(user_email, f"You've been assigned as Admin for {facility_name}", html, plain)
     logger.info("Facility admin assignment email sent to %s for facility %s", user_email, facility_name)
+
+
+@shared_task(
+    bind=True,
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    max_retries=3,
+    name="accounts.send_patient_welcome_email",
+)
+def send_patient_welcome_email_task(
+    self,
+    user_name: str,
+    user_email: str,
+    temp_password: str,
+    facility_name: str,
+    unique_id: str = None,
+):
+    """
+    Send welcome email to a newly registered patient with login credentials.
+    """
+    login_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
+    patient_login_path = '/login'
+
+    html = render_to_string(
+        "emails/patient_welcome.html",
+        {
+            "user_name": user_name,
+            "temp_password": temp_password,
+            "facility_name": facility_name,
+            "unique_id": unique_id,
+            "login_url": f"{login_url}{patient_login_path}",
+            "app_name": settings.APP_NAME,
+        },
+    )
+    plain = (
+        f"Hi {user_name},\n\n"
+        f"Welcome to {settings.APP_NAME}!\n\n"
+        f"You have been registered as a patient at {facility_name}.\n\n"
+        f"Your Patient ID: {unique_id or 'N/A'}\n"
+        f"Temporary Password: {temp_password}\n\n"
+        f"Login URL: {login_url}{patient_login_path}\n\n"
+        f"Please login and complete your onboarding.\n\n"
+        f"— The {settings.APP_NAME} Team"
+    )
+    _send_email(user_email, f"Welcome to {settings.APP_NAME} – Your Login Credentials", html, plain)
+    logger.info("Patient welcome email sent to %s", user_email)
