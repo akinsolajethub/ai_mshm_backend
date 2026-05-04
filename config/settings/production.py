@@ -150,6 +150,7 @@ if SENTRY_DSN:
     )
 
 # ── Security Logging ─────────────────────────────────────────────
+# Render captures stdout/stderr automatically; skip file handler to avoid build errors
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
@@ -162,27 +163,20 @@ LOGGING = {
     },
     "handlers": {
         "console": {"class": "logging.StreamHandler", "formatter": "json"},
-        "security_file": {
-            "class": "logging.handlers.RotatingFileHandler",
-            "filename": os.path.join(BASE_DIR, "logs", "security.log"),
-            "maxBytes": 10485760,  # 10MB
-            "backupCount": 10,
-            "formatter": "verbose",
-        },
     },
     "loggers": {
         "django.security": {
-            "handlers": ["security_file", "console"],
+            "handlers": ["console"],
             "level": "INFO",
             "propagate": False,
         },
         "django.auth": {
-            "handlers": ["security_file", "console"],
+            "handlers": ["console"],
             "level": "INFO",
             "propagate": False,
         },
         "apps.accounts": {
-            "handlers": ["security_file", "console"],
+            "handlers": ["console"],
             "level": "INFO",
             "propagate": False,
         },

@@ -17,6 +17,9 @@ COPY . .
 # Make scripts executable
 RUN chmod +x scripts/wait_for_services.py
 
+# Create logs directory (required for RotatingFileHandler at build time)
+RUN mkdir -p /app/logs
+
 ENV DJANGO_SETTINGS_MODULE=config.settings.production
 
 RUN SECRET_KEY=dummy-build-time-secret-key-not-used-in-production \
