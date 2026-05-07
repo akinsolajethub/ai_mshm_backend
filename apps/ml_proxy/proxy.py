@@ -25,7 +25,7 @@ def _get_nodejs_token(user_id: str) -> str:
         response = requests.post(
             f"{NODEJS_BASE}/api/v1/auth/token",
             json={"external_id": str(user_id)},
-            timeout=10,
+            timeout=30,
         )
         response.raise_for_status()
         token = response.json()["data"]["token"]
@@ -51,7 +51,7 @@ def nodejs_get(user_id: str, path: str, params: dict = None) -> tuple:
             f"{NODEJS_BASE}{path}",
             headers=_headers(user_id),
             params=params,
-            timeout=20,
+            timeout=60,
         )
         return resp.json(), resp.status_code
     except requests.exceptions.ConnectionError:
@@ -78,7 +78,7 @@ def nodejs_post(user_id: str, path: str, body: dict = None) -> tuple:
             f"{NODEJS_BASE}{path}",
             headers=_headers(user_id),
             json=body or {},
-            timeout=20,
+            timeout=60,
         )
         return resp.json(), resp.status_code
     except requests.exceptions.ConnectionError:

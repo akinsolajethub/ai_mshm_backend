@@ -1,0 +1,5935 @@
+openapi: 3.0.3
+info:
+  title: AI-MSHM API
+  version: 1.0.0
+  description: AI-Driven Multi-Source Health Measurement System – REST API
+paths:
+  /:
+    get:
+      operationId: root_retrieve
+      summary: API root
+      tags:
+      - System
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/auth/forgot-password/:
+    post:
+      operationId: api_v1_auth_forgot_password_create
+      summary: Request password reset email
+      tags:
+      - Auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ForgotPasswordRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ForgotPasswordRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ForgotPasswordRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/auth/login/:
+    post:
+      operationId: api_v1_auth_login_create
+      description: Custom login view that wraps SimpleJWT with rate limiting and proper
+        response format.
+      summary: Login – obtain JWT token pair
+      tags:
+      - Auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomTokenObtainPairRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CustomTokenObtainPairRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CustomTokenObtainPairRequest'
+        required: true
+      responses:
+        '200':
+          description: No response body
+  /api/v1/auth/logout/:
+    post:
+      operationId: api_v1_auth_logout_create
+      summary: Logout – blacklist refresh token
+      tags:
+      - Auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LogoutRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/LogoutRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/LogoutRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/auth/logs/:
+    get:
+      operationId: api_v1_auth_logs_retrieve
+      summary: Get activity logs
+      tags:
+      - Admin
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/auth/me/:
+    get:
+      operationId: api_v1_auth_me_retrieve
+      summary: Get current user profile
+      tags:
+      - Auth
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    patch:
+      operationId: api_v1_auth_me_partial_update
+      description: |-
+        Send as `multipart/form-data` (not JSON) when uploading an avatar.
+
+        - `full_name` — string (optional)
+        - `avatar` — image file (optional, uploads to Cloudinary)
+      summary: Update current user profile (name, avatar)
+      tags:
+      - Auth
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedUpdateProfileRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/auth/me/change-password/:
+    post:
+      operationId: api_v1_auth_me_change_password_create
+      summary: Change password (authenticated)
+      tags:
+      - Auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/auth/me/delete/:
+    post:
+      operationId: api_v1_auth_me_delete_create
+      description: Permanently deletes the authenticated user's account and all associated
+        data. Requires current password confirmation. This action is irreversible.
+      summary: Delete account
+      tags:
+      - Auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConfirmPasswordRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ConfirmPasswordRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ConfirmPasswordRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/auth/register/:
+    post:
+      operationId: api_v1_auth_register_create
+      description: Creates a Patient or Clinician account and sends an email verification
+        link.
+      summary: Register a new user
+      tags:
+      - Auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/auth/resend-verification/:
+    post:
+      operationId: api_v1_auth_resend_verification_create
+      summary: Resend email verification link
+      tags:
+      - Auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResendVerificationRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ResendVerificationRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ResendVerificationRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/auth/reset-password/:
+    post:
+      operationId: api_v1_auth_reset_password_create
+      summary: Reset password with token
+      tags:
+      - Auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResetPasswordRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ResetPasswordRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ResetPasswordRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/auth/stats/:
+    get:
+      operationId: api_v1_auth_stats_retrieve
+      summary: Get system statistics
+      tags:
+      - Admin
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/auth/token/refresh/:
+    post:
+      operationId: api_v1_auth_token_refresh_create
+      description: |-
+        Takes a refresh type JSON web token and returns an access type JSON web
+        token if the refresh token is valid.
+      summary: Refresh access token
+      tags:
+      - Auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenRefreshRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TokenRefreshRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TokenRefreshRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenRefresh'
+          description: ''
+  /api/v1/auth/users/:
+    get:
+      operationId: api_v1_auth_users_retrieve
+      summary: List all users
+      tags:
+      - Admin
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: api_v1_auth_users_create
+      description: Create a new user account with a specified role.
+      summary: Create a new user
+      tags:
+      - Admin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                full_name:
+                  type: string
+                password:
+                  type: string
+                  minLength: 8
+                confirm_password:
+                  type: string
+                role:
+                  type: string
+                is_email_verified:
+                  type: boolean
+              required:
+              - email
+              - full_name
+              - password
+              - confirm_password
+              - role
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/auth/users/{user_id}/:
+    get:
+      operationId: api_v1_auth_users_retrieve_2
+      summary: Get user by ID
+      parameters:
+      - in: path
+        name: user_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - Admin
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/auth/verify-email/:
+    post:
+      operationId: api_v1_auth_verify_email_create
+      summary: Verify email address
+      tags:
+      - Auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailVerificationRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/EmailVerificationRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/EmailVerificationRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/centers/admin/centers/:
+    get:
+      operationId: api_v1_centers_admin_centers_retrieve
+      summary: '[Platform Admin] List ALL centers (PHC, FMC, etc)'
+      tags:
+      - Platform Admin — Centers
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: api_v1_centers_admin_centers_create
+      description: Create a new facility of any type (PHC, FMC, STH, etc.)
+      summary: '[Platform Admin] Create a new facility'
+      tags:
+      - Platform Admin — Centers
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HealthCareCenterRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/HealthCareCenterRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/HealthCareCenterRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/centers/admin/centers/{id}/:
+    get:
+      operationId: api_v1_centers_admin_centers_retrieve_2
+      summary: '[Platform Admin] Get facility detail'
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Platform Admin — Centers
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    patch:
+      operationId: api_v1_centers_admin_centers_partial_update
+      description: Update facility details. Use admin_email to assign an existing
+        user as admin.
+      summary: '[Platform Admin] Update facility'
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Platform Admin — Centers
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/centers/admin/fmc/:
+    get:
+      operationId: api_v1_centers_admin_fmc_retrieve
+      summary: '[Platform Admin] List all FMCs'
+      tags:
+      - Platform Admin — Centers
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: api_v1_centers_admin_fmc_create
+      summary: '[Platform Admin] Create an FMC'
+      tags:
+      - Platform Admin — Centers
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FederalHealthCenterRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/FederalHealthCenterRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/FederalHealthCenterRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/centers/admin/fmc/{id}/:
+    get:
+      operationId: api_v1_centers_admin_fmc_retrieve_2
+      summary: '[Platform Admin] Get FMC detail'
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Platform Admin — Centers
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    patch:
+      operationId: api_v1_centers_admin_fmc_partial_update
+      summary: '[Platform Admin] Update FMC'
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Platform Admin — Centers
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedFederalHealthCenterRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedFederalHealthCenterRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedFederalHealthCenterRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    delete:
+      operationId: api_v1_centers_admin_fmc_destroy
+      summary: '[Platform Admin] Delete FMC'
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Platform Admin — Centers
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/centers/admin/phc/:
+    get:
+      operationId: api_v1_centers_admin_phc_retrieve
+      summary: '[Platform Admin] List all PHCs'
+      tags:
+      - Platform Admin — Centers
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/centers/admin/phc/{id}/:
+    get:
+      operationId: api_v1_centers_admin_phc_retrieve_2
+      summary: '[Platform Admin] Get PHC detail'
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Platform Admin — Centers
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    patch:
+      operationId: api_v1_centers_admin_phc_partial_update
+      description: Platform Admin can set escalates_to to link this PHC to an FMC.
+      summary: '[Platform Admin] Update PHC'
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Platform Admin — Centers
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedHealthCareCenterRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedHealthCareCenterRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedHealthCareCenterRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    delete:
+      operationId: api_v1_centers_admin_phc_destroy
+      summary: '[Platform Admin] Delete PHC'
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Platform Admin — Centers
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/centers/change-request/:
+    get:
+      operationId: api_v1_centers_change_request_retrieve
+      summary: List own change requests
+      tags:
+      - Patient Portal
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: api_v1_centers_change_request_create
+      description: |-
+        Submit a request to change your home PHC or report an issue.
+
+        **CHANGE_PHC:** Include `requested_hcc` UUID.
+        **REPORT_ISSUE / OTHER:** Just include `description`.
+      summary: Submit a change request
+      tags:
+      - Patient Portal
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/centers/change-request/{id}/:
+    get:
+      operationId: api_v1_centers_change_request_retrieve_2
+      summary: Get change request detail
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Patient Portal
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/centers/clinician/analytics/:
+    get:
+      operationId: api_v1_centers_clinician_analytics_retrieve
+      summary: Get clinician analytics (CL7)
+      tags:
+      - Clinician Portal
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/centers/clinician/appointment/{patient_id}/:
+    post:
+      operationId: api_v1_centers_clinician_appointment_create
+      summary: Book patient appointment (CL6)
+      parameters:
+      - in: path
+        name: patient_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Clinician Portal
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/centers/clinician/cases/:
+    get:
+      operationId: api_v1_centers_clinician_cases_retrieve
+      description: |-
+        Returns all cases assigned to the authenticated clinician.
+
+        **Filters:** `?status=assigned` | `?condition=pcos`
+
+        Default: returns all non-discharged cases sorted by severity.
+      summary: List clinician's assigned patient cases (CL2)
+      tags:
+      - Clinician Portal
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/centers/clinician/cases/{id}/:
+    get:
+      operationId: api_v1_centers_clinician_cases_retrieve_2
+      description: |-
+        GET /api/v1/centers/clinician/cases/<uuid:pk>/
+        Clinician views full detail of one of their assigned cases (screen CL3).
+      summary: Get assigned patient case detail (CL3)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Clinician Portal
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/centers/clinician/communications/:
+    get:
+      operationId: api_v1_centers_clinician_communications_retrieve
+      summary: List notifications/conversations
+      tags:
+      - Clinician Portal
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: api_v1_centers_clinician_communications_create
+      summary: Archive conversation
+      tags:
+      - Clinician Portal
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    patch:
+      operationId: api_v1_centers_clinician_communications_partial_update
+      summary: Mark conversation as read
+      tags:
+      - Clinician Portal
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    delete:
+      operationId: api_v1_centers_clinician_communications_destroy
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/centers/clinician/communications/{id}/archive/:
+    get:
+      operationId: api_v1_centers_clinician_communications_archive_retrieve
+      summary: List notifications/conversations
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Clinician Portal
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: api_v1_centers_clinician_communications_archive_create
+      summary: Archive conversation
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Clinician Portal
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    patch:
+      operationId: api_v1_centers_clinician_communications_archive_partial_update
+      summary: Mark conversation as read
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Clinician Portal
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    delete:
+      operationId: api_v1_centers_clinician_communications_archive_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/centers/clinician/communications/{id}/read/:
+    get:
+      operationId: api_v1_centers_clinician_communications_read_retrieve
+      summary: List notifications/conversations
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Clinician Portal
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: api_v1_centers_clinician_communications_read_create
+      summary: Archive conversation
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Clinician Portal
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    patch:
+      operationId: api_v1_centers_clinician_communications_read_partial_update
+      summary: Mark conversation as read
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Clinician Portal
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    delete:
+      operationId: api_v1_centers_clinician_communications_read_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/centers/clinician/letter/{patient_id}/:
+    post:
+      operationId: api_v1_centers_clinician_letter_create
+      summary: Generate clinical letter (CL6)
+      parameters:
+      - in: path
+        name: patient_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Clinician Portal
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/centers/clinician/message/{patient_id}/:
+    post:
+      operationId: api_v1_centers_clinician_message_create
+      summary: Send patient message (CL6)
+      parameters:
+      - in: path
+        name: patient_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Clinician Portal
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/centers/clinician/onboarding/:
+    post:
+      operationId: api_v1_centers_clinician_onboarding_create
+      summary: Complete clinician onboarding
+      tags:
+      - Clinician Portal
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClinicianOnboardingRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ClinicianOnboardingRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ClinicianOnboardingRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/centers/clinician/prescriptions/:
+    get:
+      operationId: api_v1_centers_clinician_prescriptions_retrieve
+      summary: Create/list prescriptions (CL5)
+      tags:
+      - Clinician Portal
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: api_v1_centers_clinician_prescriptions_create
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/centers/clinician/prescriptions/{id}/:
+    patch:
+      operationId: api_v1_centers_clinician_prescriptions_partial_update
+      summary: Update prescription (CL5)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Clinician Portal
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/centers/clinician/profile/:
+    get:
+      operationId: api_v1_centers_clinician_profile_retrieve
+      summary: Get own clinician profile (CL8)
+      tags:
+      - Clinician Portal
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    patch:
+      operationId: api_v1_centers_clinician_profile_partial_update
+      summary: Update own clinician profile (CL8)
+      tags:
+      - Clinician Portal
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedUpdateClinicianProfileRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedUpdateClinicianProfileRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedUpdateClinicianProfileRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/centers/clinician/treatment-plans/:
+    get:
+      operationId: api_v1_centers_clinician_treatment_plans_retrieve
+      summary: List treatment plans (CL4)
+      tags:
+      - Clinician Portal
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: api_v1_centers_clinician_treatment_plans_create
+      summary: Create treatment plan (CL4)
+      tags:
+      - Clinician Portal
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TreatmentPlanRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TreatmentPlanRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TreatmentPlanRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/centers/clinician/treatment-plans/{id}/:
+    get:
+      operationId: api_v1_centers_clinician_treatment_plans_retrieve_2
+      summary: Get treatment plan detail (CL4)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Clinician Portal
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    patch:
+      operationId: api_v1_centers_clinician_treatment_plans_partial_update
+      summary: Update treatment plan (CL4)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Clinician Portal
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedTreatmentPlanRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedTreatmentPlanRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedTreatmentPlanRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/centers/cln/walk-in/:
+    post:
+      operationId: api_v1_centers_cln_walk_in_create
+      description: |-
+        Register a new walk-in patient at any facility.
+
+        Required fields: `full_name`, `email` (or phone), `condition`
+        Optional: `age`, `notes`, `severity`
+      summary: Register walk-in patient
+      tags:
+      - Walk-in Registration
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/centers/countries/:
+    get:
+      operationId: api_v1_centers_countries_retrieve
+      summary: List all countries
+      tags:
+      - Platform Admin — Locations
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/centers/fmc/:
+    get:
+      operationId: api_v1_centers_fmc_retrieve
+      description: GET /api/v1/centers/fmc/ — No auth required.
+      summary: List active FMCs
+      tags:
+      - Public
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/centers/fmc/alerts/:
+    get:
+      operationId: api_v1_centers_fmc_alerts_retrieve
+      description: Returns priority-sorted alerts including critical unassigned cases.
+      summary: Get FMC alerts (FMC7)
+      tags:
+      - FMC Portal
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/centers/fmc/analytics/:
+    get:
+      operationId: api_v1_centers_fmc_analytics_retrieve
+      description: Returns analytics data for the FMC including case severity and
+        outcomes.
+      summary: Get FMC population analytics (FMC6)
+      tags:
+      - FMC Portal
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/centers/fmc/auto-assign/:
+    post:
+      operationId: api_v1_centers_fmc_auto_assign_create
+      description: Automatically assigns unassigned patients to available clinicians.
+      summary: Auto-assign patients
+      tags:
+      - FMC Portal
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/centers/fmc/cases/:
+    get:
+      operationId: api_v1_centers_fmc_cases_retrieve
+      description: |-
+        Returns active patient cases for this FMC.
+
+        **Filters:** `?status=open` | `?condition=pcos` | `?severity=severe`
+
+        Default: returns all non-discharged cases.
+      summary: Get FMC patient case queue (FMC2)
+      tags:
+      - FMC Portal
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/centers/fmc/cases/{id}/:
+    get:
+      operationId: api_v1_centers_fmc_cases_retrieve_2
+      summary: Get patient case detail (FMC3)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - FMC Portal
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/centers/fmc/cases/{id}/assign/:
+    post:
+      operationId: api_v1_centers_fmc_cases_assign_create
+      description: |-
+        Assigns a verified clinician to an open case.
+
+        Both the clinician and the patient are notified immediately.
+
+        Body: `{ "clinician_id": "<uuid>" }`
+      summary: Assign clinician to case (FMC4)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - FMC Portal
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/centers/fmc/cases/{id}/consultation-notes/:
+    get:
+      operationId: api_v1_centers_fmc_cases_consultation_notes_retrieve
+      description: Retreives all consultation notes for a patient case.
+      summary: Get consultation notes (FMC10)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - FMC Portal
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: api_v1_centers_fmc_cases_consultation_notes_create
+      description: |-
+        Creates a new consultation note for a patient case.
+
+        Body: `{ "note_type": "initial|followup|routine|urgent", "content": "...", "vital_signs": {...}, "diagnosis": {...} }`
+      summary: Create consultation note (FMC10)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - FMC Portal
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/centers/fmc/cases/{id}/discharge/:
+    post:
+      operationId: api_v1_centers_fmc_cases_discharge_create
+      description: |-
+        Closes a patient case as DISCHARGED.
+
+        - Patient is notified
+        - PHC is notified to resume monitoring
+        - Patient can now change their PHC freely
+
+        Body (optional): `{ "closing_score": 35, "notes": "..." }`
+      summary: Discharge patient case (FMC8)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - FMC Portal
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/centers/fmc/cases/{id}/treatment-plans/:
+    get:
+      operationId: api_v1_centers_fmc_cases_treatment_plans_retrieve
+      description: Retrieves all treatment plans for a patient case.
+      summary: Get treatment plans (FMC11)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - FMC Portal
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: api_v1_centers_fmc_cases_treatment_plans_create
+      description: |-
+        Creates a new treatment plan for a patient case.
+
+        Body: `{ "title": "...", "description": "...", "medications": {...}, "lifestyle": {...}, "follow_up_days": 30 }`
+      summary: Create treatment plan (FMC11)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - FMC Portal
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/centers/fmc/clinicians/:
+    get:
+      operationId: api_v1_centers_fmc_clinicians_retrieve
+      summary: List clinicians for this FMC
+      tags:
+      - FMC Admin
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: api_v1_centers_fmc_clinicians_create
+      description: Starts unverified. Must verify before clinician can access patient
+        data.
+      summary: Create a clinician account
+      tags:
+      - FMC Admin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateClinicianRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CreateClinicianRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CreateClinicianRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/centers/fmc/clinicians/{id}/:
+    get:
+      operationId: api_v1_centers_fmc_clinicians_retrieve_2
+      summary: Get clinician detail
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - FMC Admin
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    patch:
+      operationId: api_v1_centers_fmc_clinicians_partial_update
+      summary: Update clinician profile
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - FMC Admin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedUpdateClinicianProfileRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedUpdateClinicianProfileRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedUpdateClinicianProfileRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/centers/fmc/clinicians/{id}/activate/:
+    post:
+      operationId: api_v1_centers_fmc_clinicians_activate_create
+      description: Reactivates a previously deactivated clinician account.
+      summary: Reactivate a clinician account
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - FMC Admin
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/centers/fmc/clinicians/{id}/deactivate/:
+    post:
+      operationId: api_v1_centers_fmc_clinicians_deactivate_create
+      description: Deactivates clinician account. They cannot log in or access patients.
+      summary: Deactivate a clinician account
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - FMC Admin
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/centers/fmc/clinicians/{id}/verify/:
+    post:
+      operationId: api_v1_centers_fmc_clinicians_verify_create
+      description: Marks clinician as verified. Clinician receives in-app notification.
+      summary: Verify a clinician account
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - FMC Admin
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/centers/fmc/consultation-notes/{id}/:
+    get:
+      operationId: api_v1_centers_fmc_consultation_notes_retrieve
+      description: |-
+        GET/PATCH/DELETE /api/v1/centers/fmc/consultation-notes/<uuid:pk>/
+
+        Retrieve, update, or delete a specific consultation note.
+      summary: Get consultation note detail (FMC10)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - FMC Portal
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    patch:
+      operationId: api_v1_centers_fmc_consultation_notes_partial_update
+      description: |-
+        GET/PATCH/DELETE /api/v1/centers/fmc/consultation-notes/<uuid:pk>/
+
+        Retrieve, update, or delete a specific consultation note.
+      summary: Update consultation note (FMC10)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - FMC Portal
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    delete:
+      operationId: api_v1_centers_fmc_consultation_notes_destroy
+      description: |-
+        GET/PATCH/DELETE /api/v1/centers/fmc/consultation-notes/<uuid:pk>/
+
+        Retrieve, update, or delete a specific consultation note.
+      summary: Delete consultation note (FMC10)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - FMC Portal
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/centers/fmc/diagnostics-status/{patient_id}/:
+    get:
+      operationId: api_v1_centers_fmc_diagnostics_status_retrieve
+      description: Returns pending and completed diagnostics requests.
+      summary: Get diagnostics status
+      parameters:
+      - in: path
+        name: patient_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - FMC Portal
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/centers/fmc/discharge/{patient_id}/:
+    post:
+      operationId: api_v1_centers_fmc_discharge_create
+      description: Closes a patient case with final diagnosis and discharge letter.
+      summary: Discharge patient (FMC8)
+      parameters:
+      - in: path
+        name: patient_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - FMC Portal
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FMCDischargeRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/FMCDischargeRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/FMCDischargeRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/centers/fmc/network-phc/:
+    get:
+      operationId: api_v1_centers_fmc_network_phc_retrieve
+      description: Returns PHCs that refer to this FMC with referral statistics.
+      summary: Get FMC network PHCs (FMC13)
+      tags:
+      - FMC Portal
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/centers/fmc/profile/:
+    get:
+      operationId: api_v1_centers_fmc_profile_retrieve
+      description: Returns FMC record. FMC Admin can see which PHCs route to this
+        FMC (referring_phcs) but cannot change those links.
+      summary: Get own FMC facility profile
+      tags:
+      - FMC Admin
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    patch:
+      operationId: api_v1_centers_fmc_profile_partial_update
+      summary: Update own FMC facility profile
+      tags:
+      - FMC Admin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedFederalHealthCenterRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedFederalHealthCenterRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedFederalHealthCenterRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/centers/fmc/request-diagnostics/:
+    post:
+      operationId: api_v1_centers_fmc_request_diagnostics_create
+      description: Sends a diagnostic test request to the patient.
+      summary: Request diagnostics (FMC5)
+      tags:
+      - FMC Portal
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FMCDiagnosticsRequestRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/FMCDiagnosticsRequestRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/FMCDiagnosticsRequestRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/centers/fmc/staff/:
+    get:
+      operationId: api_v1_centers_fmc_staff_retrieve
+      summary: List FMC staff accounts
+      tags:
+      - FMC Admin
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: api_v1_centers_fmc_staff_create
+      summary: Create an FMC staff account
+      tags:
+      - FMC Admin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateFHCStaffRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CreateFHCStaffRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CreateFHCStaffRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/centers/fmc/staff/{id}/:
+    get:
+      operationId: api_v1_centers_fmc_staff_retrieve_2
+      summary: Get FMC staff detail
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - FMC Admin
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    patch:
+      operationId: api_v1_centers_fmc_staff_partial_update
+      summary: Update FMC staff member
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - FMC Admin
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    delete:
+      operationId: api_v1_centers_fmc_staff_destroy
+      summary: Deactivate FMC staff account
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - FMC Admin
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/centers/fmc/treatment-plans/{id}/:
+    get:
+      operationId: api_v1_centers_fmc_treatment_plans_retrieve
+      description: |-
+        GET/PATCH/DELETE /api/v1/centers/fmc/treatment-plans/<uuid:pk>/
+
+        Retrieve, update, or delete a specific treatment plan.
+      summary: Get treatment plan detail (FMC11)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - FMC Portal
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    patch:
+      operationId: api_v1_centers_fmc_treatment_plans_partial_update
+      description: |-
+        GET/PATCH/DELETE /api/v1/centers/fmc/treatment-plans/<uuid:pk>/
+
+        Retrieve, update, or delete a specific treatment plan.
+      summary: Update treatment plan (FMC11)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - FMC Portal
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    delete:
+      operationId: api_v1_centers_fmc_treatment_plans_destroy
+      description: |-
+        GET/PATCH/DELETE /api/v1/centers/fmc/treatment-plans/<uuid:pk>/
+
+        Retrieve, update, or delete a specific treatment plan.
+      summary: Delete treatment plan (FMC11)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - FMC Portal
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/centers/fmc/walk-in/:
+    post:
+      operationId: api_v1_centers_fmc_walk_in_create
+      description: |-
+        Register a new walk-in patient at any facility.
+
+        Required fields: `full_name`, `email` (or phone), `condition`
+        Optional: `age`, `notes`, `severity`
+      summary: Register walk-in patient
+      tags:
+      - Walk-in Registration
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/centers/fth/walk-in/:
+    post:
+      operationId: api_v1_centers_fth_walk_in_create
+      description: |-
+        Register a new walk-in patient at any facility.
+
+        Required fields: `full_name`, `email` (or phone), `condition`
+        Optional: `age`, `notes`, `severity`
+      summary: Register walk-in patient
+      tags:
+      - Walk-in Registration
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/centers/hmo/walk-in/:
+    post:
+      operationId: api_v1_centers_hmo_walk_in_create
+      description: |-
+        Register a new walk-in patient at any facility.
+
+        Required fields: `full_name`, `email` (or phone), `condition`
+        Optional: `age`, `notes`, `severity`
+      summary: Register walk-in patient
+      tags:
+      - Walk-in Registration
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/centers/phc/:
+    get:
+      operationId: api_v1_centers_phc_retrieve
+      description: |-
+        Returns active PHCs for dropdown lists.
+
+        **Query params:** `?state=Lagos` and/or `?lga=Surulere`
+
+        Used by onboarding step 7 to show nearby PHCs.
+      summary: List active PHCs
+      tags:
+      - Public
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/centers/phc/advice/:
+    post:
+      operationId: api_v1_centers_phc_advice_create
+      description: Sends lifestyle advice to a patient and updates the record status.
+      summary: Send lifestyle advice to patient (PHC5)
+      tags:
+      - PHC Portal
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PHCAdviceRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PHCAdviceRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PHCAdviceRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/centers/phc/advice/history/:
+    get:
+      operationId: api_v1_centers_phc_advice_history_retrieve
+      description: Returns recent lifestyle advice sent by PHC staff.
+      summary: Get recent advice history (PHC5)
+      tags:
+      - PHC Portal
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/centers/phc/analytics/:
+    get:
+      operationId: api_v1_centers_phc_analytics_retrieve
+      description: Returns analytics data for the PHC including patient stats and
+        activity.
+      summary: Get PHC analytics (PHC7)
+      tags:
+      - PHC Portal
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/centers/phc/profile/:
+    get:
+      operationId: api_v1_centers_phc_profile_retrieve
+      summary: Get own PHC facility profile
+      tags:
+      - PHC Admin
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    patch:
+      operationId: api_v1_centers_phc_profile_partial_update
+      description: Cannot change escalates_to — Platform Admin only.
+      summary: Update own PHC facility profile
+      tags:
+      - PHC Admin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedHealthCareCenterRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedHealthCareCenterRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedHealthCareCenterRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/centers/phc/queue/:
+    get:
+      operationId: api_v1_centers_phc_queue_retrieve
+      description: |-
+        Returns all patient records for this PHC.
+
+        **Filters (optional):**
+        - `status` — `new` | `under_review` | `action_taken` | `escalated` | `discharged`
+        - `condition` — `pcos` | `maternal` | `cardiovascular`
+        - `severity` — `mild` | `moderate`
+        - `search` — search by patient name or email
+      summary: Get PHC patient queue (PHC2)
+      tags:
+      - PHC Portal
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/centers/phc/queue/{id}/:
+    get:
+      operationId: api_v1_centers_phc_queue_retrieve_2
+      description: Returns full detail of a single PHC patient record.
+      summary: Get PHC patient record detail (PHC3)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - PHC Portal
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    patch:
+      operationId: api_v1_centers_phc_queue_partial_update
+      description: |-
+        PHC staff can update:
+        - `status` — `under_review` | `action_taken` | `discharged`
+        - `notes` — free text staff observations
+        - `next_followup` — date for next follow-up (YYYY-MM-DD)
+      summary: Update PHC patient record
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - PHC Portal
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/centers/phc/queue/{id}/escalate/:
+    post:
+      operationId: api_v1_centers_phc_queue_escalate_create
+      description: |-
+        Escalates a Mild/Moderate patient to the FMC for Severe-level care.
+
+        The FMC is determined by this PHC's `escalates_to` link — PHC staff do not choose the FMC directly.
+
+        Body (optional): `{ "urgency": "urgent", "notes": "..." }`
+        urgency: `routine` | `priority` | `urgent`
+      summary: Escalate patient to FMC (PHC6)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - PHC Portal
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/centers/phc/staff/:
+    get:
+      operationId: api_v1_centers_phc_staff_retrieve
+      summary: List PHC staff accounts
+      tags:
+      - PHC Admin
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: api_v1_centers_phc_staff_create
+      description: Creates a new PHC staff account. Returns temp_password that should
+        be shared with the new staff member.
+      summary: Create a PHC staff account
+      tags:
+      - PHC Admin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateHCCStaffRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CreateHCCStaffRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CreateHCCStaffRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/centers/phc/staff/{id}/:
+    get:
+      operationId: api_v1_centers_phc_staff_retrieve_2
+      summary: Get PHC staff member detail
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - PHC Admin
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    patch:
+      operationId: api_v1_centers_phc_staff_partial_update
+      summary: Update PHC staff member
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - PHC Admin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedHCCStaffProfileRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedHCCStaffProfileRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedHCCStaffProfileRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    delete:
+      operationId: api_v1_centers_phc_staff_destroy
+      summary: Deactivate PHC staff account
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - PHC Admin
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/centers/phc/walk-in/:
+    post:
+      operationId: api_v1_centers_phc_walk_in_create
+      description: |-
+        Registers a new patient who walked into the PHC without an app account.
+
+        The patient is automatically linked to the PHC staff's facility.
+        A temporary password is generated and should be shared with the patient.
+
+        Required fields: `full_name`, `email` (or phone), `condition`, `severity`
+        Optional: `age`, `notes`
+      summary: Register walk-in patient (PHC4)
+      tags:
+      - PHC Portal
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/centers/phc/walk-in/comprehensive/:
+    post:
+      operationId: api_v1_centers_phc_walk_in_comprehensive_create
+      description: Comprehensive registration including demographics, measurements,
+        and symptoms.
+      summary: Register walk-in patient with full assessment (PHC4)
+      tags:
+      - PHC Portal
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/centers/ptth/walk-in/:
+    post:
+      operationId: api_v1_centers_ptth_walk_in_create
+      description: |-
+        Register a new walk-in patient at any facility.
+
+        Required fields: `full_name`, `email` (or phone), `condition`
+        Optional: `age`, `notes`, `severity`
+      summary: Register walk-in patient
+      tags:
+      - Walk-in Registration
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/centers/pvt/walk-in/:
+    post:
+      operationId: api_v1_centers_pvt_walk_in_create
+      description: |-
+        Register a new walk-in patient at any facility.
+
+        Required fields: `full_name`, `email` (or phone), `condition`
+        Optional: `age`, `notes`, `severity`
+      summary: Register walk-in patient
+      tags:
+      - Walk-in Registration
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/centers/states/:
+    get:
+      operationId: api_v1_centers_states_retrieve
+      summary: List states by country
+      tags:
+      - Platform Admin — Locations
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/centers/sth/walk-in/:
+    post:
+      operationId: api_v1_centers_sth_walk_in_create
+      description: |-
+        Register a new walk-in patient at any facility.
+
+        Required fields: `full_name`, `email` (or phone), `condition`
+        Optional: `age`, `notes`, `severity`
+      summary: Register walk-in patient
+      tags:
+      - Walk-in Registration
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/centers/stth/walk-in/:
+    post:
+      operationId: api_v1_centers_stth_walk_in_create
+      description: |-
+        Register a new walk-in patient at any facility.
+
+        Required fields: `full_name`, `email` (or phone), `condition`
+        Optional: `age`, `notes`, `severity`
+      summary: Register walk-in patient
+      tags:
+      - Walk-in Registration
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/checkin/evening/{session_id}/:
+    get:
+      operationId: api_v1_checkin_evening_retrieve
+      description: Returns previously saved mastalgia, GAGS acne, bloating, and unusual
+        bleeding values for this session.
+      summary: Get saved evening check-in data
+      parameters:
+      - in: path
+        name: session_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Check-in
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: api_v1_checkin_evening_create
+      description: Saves cyclic mastalgia (left/right breast VAS 0–10, side, quality),
+        GAGS acne scores per region (forehead, right cheek, left cheek, nose, chin,
+        chest/back — each 0–4), bloating delta in cm, and unusual bleeding flag. GAGS
+        total and mastalgia score are auto-computed. Breast_Soreness_VAS and Acne_Severity_Likert
+        are normalised and stored for the ML model.
+      summary: Save evening check-in data
+      parameters:
+      - in: path
+        name: session_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Check-in
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EveningCheckinRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/EveningCheckinRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/EveningCheckinRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    patch:
+      operationId: api_v1_checkin_evening_partial_update
+      summary: Partial update evening check-in
+      parameters:
+      - in: path
+        name: session_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Check-in
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedEveningCheckinRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedEveningCheckinRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedEveningCheckinRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/checkin/history/:
+    get:
+      operationId: api_v1_checkin_history_retrieve
+      description: Returns daily summary rows newest-first. Each row represents one
+        day's aggregated ML input.
+      summary: Get paginated check-in history
+      tags:
+      - Check-in
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/checkin/hrv/:
+    post:
+      operationId: api_v1_checkin_hrv_create
+      description: Called after the 2-minute rPPG face scan completes on the HrvCaptureScreen.
+        Saves SDNN and RMSSD in milliseconds to the session and propagates them to
+        the daily summary. If the user tapped 'Skip for now', send skipped=true and
+        omit the HRV values. Must include the session_id from the preceding morning
+        or evening session.
+      summary: Submit HRV result from rPPG camera session
+      tags:
+      - Check-in
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HRVSubmitRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/HRVSubmitRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/HRVSubmitRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/checkin/mfg/:
+    get:
+      operationId: api_v1_checkin_mfg_retrieve
+      description: Returns the most recently submitted Modified Ferriman-Gallwey assessment
+        for this user.
+      summary: Get latest mFG hirsutism score
+      tags:
+      - Check-in
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: api_v1_checkin_mfg_create
+      description: 'Weekly assessment of hair growth across 9 body areas (upper lip,
+        chin, chest, upper back, lower back, upper abdomen, lower abdomen, upper arm,
+        thigh) each scored 0–4. Total mFG score (max 36) is auto-computed. Score feeds
+        into Hirsutism_mFG_Score in the ML model. Interpretation: 0–7 Normal, 8–16
+        Mild, 17–24 Moderate, 25+ Severe.'
+      summary: Submit weekly mFG hirsutism assessment
+      tags:
+      - Check-in
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HirsutismMFGRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/HirsutismMFGRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/HirsutismMFGRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/checkin/morning/{session_id}/:
+    get:
+      operationId: api_v1_checkin_morning_retrieve
+      description: Returns previously saved fatigue, pelvic pressure, and PSQ-3 hyperalgesia
+        values for this session.
+      summary: Get saved morning check-in data
+      parameters:
+      - in: path
+        name: session_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Check-in
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: api_v1_checkin_morning_create
+      description: Saves fatigue VAS (0–10), pelvic pressure VAS (0–10), and the three
+        PSQ-3 hyperalgesia sliders (skin sensitivity, muscle pressure pain, body tenderness
+        — each 0–10). The hyperalgesia index is auto-computed as the mean of the three
+        PSQ-3 values and stored as Painful_Touch_VAS for the ML model. Call /session/<id>/submit/
+        after this to complete.
+      summary: Save morning check-in data
+      parameters:
+      - in: path
+        name: session_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Check-in
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MorningCheckinRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/MorningCheckinRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MorningCheckinRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    patch:
+      operationId: api_v1_checkin_morning_partial_update
+      description: |-
+        POST   /api/v1/checkin/morning/<session_id>/  → create
+        PATCH  /api/v1/checkin/morning/<session_id>/  → update (partial)
+        GET    /api/v1/checkin/morning/<session_id>/  → retrieve
+      summary: Partial update morning check-in
+      parameters:
+      - in: path
+        name: session_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Check-in
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedMorningCheckinRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedMorningCheckinRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedMorningCheckinRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/checkin/session/{session_id}/autosave/:
+    post:
+      operationId: api_v1_checkin_session_autosave_create
+      description: Marks the session as PARTIAL so data is not lost if the app closes
+        mid-session. Call this every time any slider value changes on the morning
+        or evening screen. Does not complete the session — use /session/<id>/submit/
+        for that.
+      summary: Auto-save session progress
+      parameters:
+      - in: path
+        name: session_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Check-in
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/checkin/session/{session_id}/submit/:
+    post:
+      operationId: api_v1_checkin_session_submit_create
+      description: Marks the session as COMPLETE and assembles the daily summary row.
+        If both morning and evening are now complete for today, this automatically
+        triggers the ML prediction pipeline. Returns the DailyCheckinSummary for the
+        day.
+      summary: Complete and submit a check-in session
+      parameters:
+      - in: path
+        name: session_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Check-in
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/checkin/session/start/:
+    post:
+      operationId: api_v1_checkin_session_start_create
+      description: Idempotent — safe to call every time the morning or evening screen
+        opens. Creates a new PENDING session if none exists, or returns the existing
+        one. The returned session_id must be passed to all subsequent morning/, evening/,
+        autosave/, submit/, and hrv/ calls. period must be 'morning' or 'evening'.
+      summary: Start or resume a check-in session
+      tags:
+      - Check-in
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                period:
+                  type: string
+                  enum:
+                  - morning
+                  - evening
+                checkin_date:
+                  type: string
+                  format: date
+                  example: '2026-03-17'
+              required:
+              - period
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/checkin/summary/{summary_date}/:
+    get:
+      operationId: api_v1_checkin_summary_retrieve
+      description: Returns the assembled daily summary for a given date in YYYY-MM-DD
+        format.
+      summary: Get check-in summary for a specific date
+      parameters:
+      - in: path
+        name: summary_date
+        schema:
+          type: string
+        required: true
+      tags:
+      - Check-in
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/checkin/today/:
+    get:
+      operationId: api_v1_checkin_today_retrieve
+      description: Returns the current status of morning and evening sessions for
+        today. Also returns missed-yesterday banners so the app can show a nudge.
+        Call this on every dashboard open. Returns session IDs so the app knows which
+        session to resume without calling /session/start/ again.
+      summary: Get today's check-in status
+      tags:
+      - Check-in
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/menstrual/features:
+    get:
+      operationId: api_v1_menstrual_features_retrieve
+      description: |-
+        Get feature schema and descriptions.
+        Proxied to: GET /api/v1/menstrual/features on Node.js
+
+        Returns the feature schema with descriptions for all 10 model input features.
+      summary: Get feature schema and descriptions
+      tags:
+      - Menstrual
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/menstrual/history:
+    get:
+      operationId: api_v1_menstrual_history_retrieve
+      description: |-
+        Get all stored menstrual cycles for the authenticated user.
+        Proxied to: GET /api/v1/menstrual/history on Node.js
+
+        Use this to populate the cycle history calendar/list screen.
+      summary: Get all stored menstrual cycles
+      tags:
+      - Menstrual
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/menstrual/log-cycle:
+    post:
+      operationId: api_v1_menstrual_log_cycle_create
+      description: |-
+        Log a completed menstrual cycle.
+        Proxied to: POST /api/v1/menstrual/log-cycle on Node.js
+
+        Call this at the END of each period (when user marks it finished).
+        Required body:
+        {
+            "period_start_date": "YYYY-MM-DD",
+            "period_end_date":   "YYYY-MM-DD",
+            "bleeding_scores":   [2, 3, 3, 2, 1],
+            "has_ovulation_peak": true,
+            "unusual_bleeding":   false,
+            "rppg_ovulation_day": null
+        }
+      summary: Log a completed menstrual cycle
+      tags:
+      - Menstrual
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MenstrualLogCycleRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/MenstrualLogCycleRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MenstrualLogCycleRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/menstrual/model-info:
+    get:
+      operationId: api_v1_menstrual_model_info_retrieve
+      description: |-
+        Get model metadata, diseases, and metrics.
+        Proxied to: GET /api/v1/menstrual/model-info on Node.js
+
+        Returns model information including diseases, flag thresholds, severity bins, and model metrics.
+      summary: Get model metadata, diseases, and metrics
+      tags:
+      - Menstrual
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/menstrual/predict:
+    post:
+      operationId: api_v1_menstrual_predict_create
+      description: |-
+        Run disease risk predictions from all stored menstrual cycles.
+        Proxied to: POST /api/v1/menstrual/predict on Node.js
+
+        No request body needed. The Node.js server reads stored cycles from its DB.
+        Requires at least 1 logged cycle. Returns 6 disease risk scores:
+        Infertility, Dysmenorrhea, PMDD, Endometrial Cancer, T2D, CVD.
+
+        Call this immediately after a successful MenstrualLogCycleView response.
+      summary: Run 6-disease menstrual risk prediction (no body needed)
+      tags:
+      - Menstrual
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/menstrual/predict/from-logs:
+    post:
+      operationId: api_v1_menstrual_predict_from_logs_create
+      description: |-
+        Predict disease risk from raw user-logged cycle data (stateless).
+        Proxied to: POST /api/v1/menstrual/predict/from-logs on Node.js
+
+        Accepts raw per-cycle logs as the user provides them in the app.
+        Does NOT store cycles in the database — use POST /log-cycle for storage.
+      summary: Predict disease risk from raw cycle data (stateless)
+      tags:
+      - Menstrual
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/menstrual/predictions:
+    get:
+      operationId: api_v1_menstrual_predictions_retrieve
+      description: |-
+        Get the last 20 menstrual prediction results for risk trend charts.
+        Proxied to: GET /api/v1/menstrual/predictions on Node.js
+
+        Use this to populate the risk score trend chart on the dashboard.
+      summary: Get last 20 menstrual prediction results for trend charts
+      tags:
+      - Menstrual
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/mood/history:
+    get:
+      operationId: api_v1_mood_history_retrieve
+      description: |-
+        Get mood log history for the authenticated user.
+        Proxied to: GET /api/v1/mood/history on Node.js
+      summary: Get mood log history
+      tags:
+      - Mood
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/mood/log/affect:
+    post:
+      operationId: api_v1_mood_log_affect_create
+      description: |-
+        Log Affect Grid (Arousal x Valence self-report).
+        Proxied to: POST /api/v1/mood/log/affect on Node.js
+
+        Call after the user completes the daily affect emoji grid.
+      summary: Log Affect Grid — Arousal x Valence
+      tags:
+      - Mood
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MoodLogAffectRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/MoodLogAffectRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MoodLogAffectRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/mood/log/complete:
+    post:
+      operationId: api_v1_mood_log_complete_create
+      description: |-
+        Log all 4 mood components (PHQ-4, Affect, Focus, Sleep) in a single call.
+        Proxied to: POST /api/v1/mood/log/complete on Node.js
+
+        Use this when the user finishes the full mood section of the check-in
+        in one session. Preferred over calling the 4 individual endpoints separately.
+        After this call succeeds, trigger MoodPredictView to refresh risk scores.
+      summary: Log all 4 mood components in one call — preferred method
+      tags:
+      - Mood
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MoodLogCompleteRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/MoodLogCompleteRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MoodLogCompleteRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/mood/log/focus:
+    post:
+      operationId: api_v1_mood_log_focus_create
+      description: |-
+        Log Cognitive Load / Focus & Memory score.
+        Proxied to: POST /api/v1/mood/log/focus on Node.js
+
+        Call after the user rates their focus and memory for the day.
+      summary: Log Cognitive Load and Focus score
+      tags:
+      - Mood
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MoodLogFocusRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/MoodLogFocusRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MoodLogFocusRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/mood/log/phq4:
+    post:
+      operationId: api_v1_mood_log_phq4_create
+      description: |-
+        Log PHQ-4 mental wellness scores.
+        Proxied to: POST /api/v1/mood/log/phq4 on Node.js
+
+        Call after the user completes the PHQ-4 screen.
+        Body:
+        {
+            "phq4_item1": 0-3,   (nervous/anxious/on edge)
+            "phq4_item2": 0-3,   (can't stop worrying)
+            "phq4_item3": 0-3,   (little interest/pleasure)
+            "phq4_item4": 0-3,   (feeling down/depressed)
+            "log_date":   "YYYY-MM-DD"   (optional, defaults to today)
+        }
+        Scale: 0=Not at all, 1=Several days, 2=More than half days, 3=Nearly every day
+      summary: Log PHQ-4 mental wellness scores
+      tags:
+      - Mood
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MoodLogPHQ4Request'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/MoodLogPHQ4Request'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MoodLogPHQ4Request'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/mood/log/sleep:
+    post:
+      operationId: api_v1_mood_log_sleep_create
+      description: |-
+        Log Sleep Quality / Satisfaction score.
+        Proxied to: POST /api/v1/mood/log/sleep on Node.js
+
+        Call after the morning check-in when user rates last night's sleep.
+      summary: Log Sleep Quality and satisfaction
+      tags:
+      - Mood
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MoodLogSleepRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/MoodLogSleepRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MoodLogSleepRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/mood/predict:
+    get:
+      operationId: api_v1_mood_predict_retrieve
+      description: |-
+        Get mood & cognitive disease risk scores (9 diseases).
+        Proxied to: GET /api/v1/predict/mood-cognitive/predict on Node.js
+
+        Returns risk scores for: Anxiety, Depression, PMDD, ChronicStress,
+        CVD_Mood, T2D_Mood, Infertility_Mood, Stroke_Mood, MetSyn_Mood.
+
+        Requires at least 3 days of mood log data in the Node.js database.
+        Returns 400 with "insufficient_data" if fewer than 3 days exist.
+
+        Call this after MoodLogCompleteView succeeds, or on dashboard load
+        to retrieve the latest cached scores.
+      summary: Get 9-disease mood and cognitive risk scores
+      tags:
+      - Mood
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/mood/predict/cardio-neuro:
+    post:
+      operationId: api_v1_mood_predict_cardio_neuro_create
+      description: POST /api/v1/mood/predict/cardio-neuro — Proxied to Node.js
+      summary: Predict cardiovascular and neurological risks
+      tags:
+      - Mood
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/mood/predict/mental-health:
+    post:
+      operationId: api_v1_mood_predict_mental_health_create
+      description: POST /api/v1/mood/predict/mental-health — Proxied to Node.js
+      summary: Predict mental health risks
+      tags:
+      - Mood
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/mood/predict/metabolic:
+    post:
+      operationId: api_v1_mood_predict_metabolic_create
+      description: POST /api/v1/mood/predict/metabolic — Proxied to Node.js
+      summary: Predict metabolic risks
+      tags:
+      - Mood
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/mood/predict/reproductive:
+    post:
+      operationId: api_v1_mood_predict_reproductive_create
+      description: POST /api/v1/mood/predict/reproductive — Proxied to Node.js
+      summary: Predict reproductive risks
+      tags:
+      - Mood
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/mood/predictions/latest:
+    get:
+      operationId: api_v1_mood_predictions_latest_retrieve
+      description: |-
+        Get latest mood predictions.
+        Proxied to: GET /api/v1/mood/predictions/latest on Node.js
+      summary: Get latest mood predictions
+      tags:
+      - Mood
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/notifications/:
+    get:
+      operationId: api_v1_notifications_retrieve
+      description: |-
+        GET  /api/v1/notifications/        → paginated list (newest first)
+        Query params: ?unread_only=true
+      summary: List in-app notifications
+      tags:
+      - Notifications
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/notifications/{id}/:
+    delete:
+      operationId: api_v1_notifications_destroy
+      description: DELETE /api/v1/notifications/<id>/
+      summary: Delete a notification
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Notifications
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/notifications/{id}/read/:
+    patch:
+      operationId: api_v1_notifications_read_partial_update
+      description: PATCH /api/v1/notifications/<id>/read/
+      summary: Mark a notification as read
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Notifications
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/notifications/mark-all-read/:
+    patch:
+      operationId: api_v1_notifications_mark_all_read_partial_update
+      description: PATCH /api/v1/notifications/mark-all-read/
+      summary: Mark all notifications as read
+      tags:
+      - Notifications
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/notifications/unread-count/:
+    get:
+      operationId: api_v1_notifications_unread_count_retrieve
+      description: GET /api/v1/notifications/unread-count/
+      summary: Get unread notification count
+      tags:
+      - Notifications
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/onboarding/complete/:
+    post:
+      operationId: api_v1_onboarding_complete_create
+      description: |-
+        Finalises onboarding and sets `onboarding_completed = true`.
+
+        If the patient has not set a home PHC, a reminder notification is scheduled for 24 hours later.
+      summary: Mark onboarding as complete
+      tags:
+      - Onboarding
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/onboarding/profile/:
+    get:
+      operationId: api_v1_onboarding_profile_retrieve
+      description: Returns all saved onboarding data including registered PHC and
+        the PHC's escalation FMC. Creates empty profile if none exists.
+      summary: Get current user's full onboarding profile
+      tags:
+      - Onboarding
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingProfile'
+          description: ''
+  /api/v1/onboarding/step/1/:
+    patch:
+      operationId: api_v1_onboarding_step_1_partial_update
+      description: |-
+        Submit personal info.
+
+        - `full_name` — string
+        - `age` — integer (10–120)
+        - `ethnicity` — `white` | `black` | `hispanic` | `asian` | `south_asian` | `middle_eastern` | `mixed` | `prefer_not`
+      summary: Step 1 – Personal Info
+      tags:
+      - Onboarding
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedStep1PersonalInfoRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedStep1PersonalInfoRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedStep1PersonalInfoRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Step1PersonalInfo'
+          description: ''
+  /api/v1/onboarding/step/2/:
+    patch:
+      operationId: api_v1_onboarding_step_2_partial_update
+      description: |-
+        Submit physical measurements. BMI is computed automatically.
+
+        - `height_cm` — float (50–300)
+        - `weight_kg` — float (20–500)
+      summary: Step 2 – Physical Measurements
+      tags:
+      - Onboarding
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedStep2PhysicalMeasurementsRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedStep2PhysicalMeasurementsRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedStep2PhysicalMeasurementsRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Step2PhysicalMeasurements'
+          description: ''
+  /api/v1/onboarding/step/3/:
+    patch:
+      operationId: api_v1_onboarding_step_3_partial_update
+      description: |-
+        Submit skin change info (Acanthosis Nigricans screening).
+
+        - `has_skin_changes` — boolean
+      summary: Step 3 – Skin Changes
+      tags:
+      - Onboarding
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedStep3SkinChangesRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedStep3SkinChangesRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedStep3SkinChangesRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Step3SkinChanges'
+          description: ''
+  /api/v1/onboarding/step/4/:
+    patch:
+      operationId: api_v1_onboarding_step_4_partial_update
+      description: |-
+        Submit menstrual history.
+
+        - `cycle_length_days` — integer (1–90)
+        - `periods_per_year` — integer (0–14)
+        - `cycle_regularity` — `regular` | `irregular`
+      summary: Step 4 – Menstrual History
+      tags:
+      - Onboarding
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedStep4MenstrualHistoryRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedStep4MenstrualHistoryRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedStep4MenstrualHistoryRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Step4MenstrualHistory'
+          description: ''
+  /api/v1/onboarding/step/5/:
+    patch:
+      operationId: api_v1_onboarding_step_5_partial_update
+      description: |-
+        Submit wearable device selection.
+
+        - `selected_wearable` — `apple_watch` | `fitbit` | `garmin` | `oura_ring` | `none`
+      summary: Step 5 – Wearable Setup
+      tags:
+      - Onboarding
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedStep5WearableRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedStep5WearableRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedStep5WearableRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Step5Wearable'
+          description: ''
+  /api/v1/onboarding/step/6/rppg/:
+    post:
+      operationId: api_v1_onboarding_step_6_rppg_create
+      description: |-
+        Mark the rPPG baseline scan as captured.
+
+        - `baseline_captured` — must be `true`
+      summary: Step 6 – rPPG Baseline
+      tags:
+      - Onboarding
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Step6RppgRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Step6RppgRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Step6RppgRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/onboarding/step/7/:
+    patch:
+      operationId: api_v1_onboarding_step_7_partial_update
+      description: |-
+        Patient selects their nearest PHC. Optional during onboarding.
+
+        **Blocked** if patient has an active ASSIGNED or UNDER_TREATMENT case at a clinic. Returns 400 with case details.
+
+        **Allowed** if case is OPEN (no clinician assigned) — old case will be automatically rerouted.
+
+        **Frontend flow:**
+        1. Patient enters `state` and `lga`
+        2. Call `GET /api/v1/centers/phc/?state=X&lga=Y`
+        3. Patient picks a PHC
+        4. Submit `state`, `lga`, `registered_hcc` here
+
+        Can also be called with `registered_hcc: null` to clear the PHC selection.
+      summary: Step 7 – PHC Registration (optional, also used from P9 settings)
+      tags:
+      - Onboarding
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedStep7PHCRegistrationRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedStep7PHCRegistrationRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedStep7PHCRegistrationRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/predictions/{id}/:
+    get:
+      operationId: api_v1_predictions_retrieve
+      description: Returns the full prediction result for a given prediction UUID.
+      summary: Get a single prediction result
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Predictions
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/predictions/{id}/features/:
+    get:
+      operationId: api_v1_predictions_features_retrieve
+      description: Returns the exact 26-feature vector and raw 28-day daily data rows
+        that were fed into the ML model for this prediction. Intended for clinician
+        audit and explainability. Patients can only access their own predictions.
+        Clinicians can access linked patients.
+      summary: Get raw feature vector for a prediction (clinician audit)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Predictions
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/predictions/comprehensive/:
+    get:
+      operationId: api_v1_predictions_comprehensive_retrieve
+      description: Returns the stored comprehensive prediction combining all 4 models.
+        Includes final risk score, tier, all model predictions, severity flags, and
+        data layer information.
+      summary: Get comprehensive PCOS risk assessment
+      tags:
+      - Predictions
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: api_v1_predictions_comprehensive_create
+      description: Runs all available ML models and creates/updates the comprehensive
+        prediction. Triggers per-model escalation if risk is Moderate or higher.
+      summary: Trigger comprehensive PCOS risk assessment
+      tags:
+      - Predictions
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/predictions/ensemble-config/:
+    get:
+      operationId: api_v1_predictions_ensemble_config_retrieve
+      description: Returns all disease-specific ensemble weight configurations for
+        the weighted risk calculation.
+      summary: List ensemble weight configurations
+      tags:
+      - Admin
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/predictions/ensemble-config/{disease_name}/:
+    put:
+      operationId: api_v1_predictions_ensemble_config_update
+      description: Update the weight configuration for a specific disease. Weights
+        must sum to 1.0.
+      summary: Update ensemble weight configuration
+      parameters:
+      - in: path
+        name: disease_name
+        schema:
+          type: string
+        required: true
+      tags:
+      - Admin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EnsembleWeightConfigRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/EnsembleWeightConfigRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/EnsembleWeightConfigRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnsembleWeightConfig'
+          description: ''
+  /api/v1/predictions/ensemble-config/reset/:
+    post:
+      operationId: api_v1_predictions_ensemble_config_reset_create
+      description: Resets all disease weight configurations to their default values.
+      summary: Reset ensemble weights to defaults
+      tags:
+      - Admin
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/predictions/escalate/menstrual/:
+    post:
+      operationId: api_v1_predictions_escalate_menstrual_create
+      description: Called when menstrual tracking shows abnormal patterns or Moderate+
+        severity.
+      summary: Escalate based on menstrual predictions
+      tags:
+      - Predictions
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/predictions/escalate/mood/:
+    post:
+      operationId: api_v1_predictions_escalate_mood_create
+      description: Called when mood tracking results show Moderate or higher severity.
+      summary: Escalate based on mood predictions
+      tags:
+      - Predictions
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/predictions/escalate/rppg/:
+    post:
+      operationId: api_v1_predictions_escalate_rppg_create
+      description: Called after rPPG session capture when predictions show Moderate+
+        severity.
+      summary: Escalate based on rPPG/HRV predictions
+      tags:
+      - Predictions
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/predictions/history/:
+    get:
+      operationId: api_v1_predictions_history_retrieve
+      description: Returns paginated prediction results ordered by date descending.
+        Each entry is a full prediction result.
+      summary: Get prediction history
+      tags:
+      - Predictions
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/predictions/latest/:
+    get:
+      operationId: api_v1_predictions_latest_retrieve
+      description: 'Returns the most recent ML prediction result for the authenticated
+        patient. Each result contains scores, flags, severity, and risk probability
+        for 6 conditions: Infertility, Dysmenorrhea, PMDD, Type 2 Diabetes, Cardiovascular
+        Disease, and Endometrial Cancer. Returns null with a prompt message if fewer
+        than 3 days of check-in data exist.'
+      summary: Get latest prediction result
+      tags:
+      - Predictions
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/predictions/pcos/:
+    get:
+      operationId: api_v1_predictions_pcos_retrieve
+      description: 'Returns a combined PCOS risk score from all 4 models: Symptom
+        Intensity, Menstrual, rPPG, and Mood. Returns the maximum risk score across
+        all predictions.'
+      summary: Get unified PCOS risk score
+      tags:
+      - Predictions
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/predictions/trigger/:
+    post:
+      operationId: api_v1_predictions_trigger_create
+      description: Forces a prediction run for today's summary regardless of completeness.
+        Resets prediction_run flag and re-queues the ML pipeline. Use this during
+        development to test predictions without waiting for both morning and evening
+        sessions to complete.
+      summary: Manually trigger prediction (dev/testing)
+      tags:
+      - Predictions
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/rppg/predict/anomaly:
+    post:
+      operationId: api_v1_rppg_predict_anomaly_create
+      description: |-
+        Run anomaly detection on rPPG data.
+        Proxied to: POST /api/v1/rppg/predict/anomaly on Node.js
+
+        Returns anomaly detection results for the rPPG session.
+      summary: Run anomaly detection on rPPG data
+      tags:
+      - rPPG
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/rppg/predict/metabolic-cardio:
+    post:
+      operationId: api_v1_rppg_predict_metabolic_cardio_create
+      description: |-
+        Predict metabolic and cardiovascular disease risks from rPPG data.
+        Proxied to: POST /api/v1/rppg/predict/metabolic-cardio on Node.js
+
+        Returns risk scores for: CVD, T2D, Metabolic, HeartFailure.
+      summary: Predict metabolic and cardiovascular disease risks from rPPG data
+      tags:
+      - rPPG
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/rppg/predict/stress-reproductive:
+    post:
+      operationId: api_v1_rppg_predict_stress_reproductive_create
+      description: |-
+        Predict stress and reproductive disease risks from rPPG data.
+        Proxied to: POST /api/v1/rppg/predict/stress-reproductive on Node.js
+
+        Returns risk scores for: Stress, Infertility.
+      summary: Predict stress and reproductive disease risks from rPPG data
+      tags:
+      - rPPG
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/rppg/predictions:
+    get:
+      operationId: api_v1_rppg_predictions_retrieve
+      description: |-
+        Get rPPG prediction history for the authenticated user.
+        Proxied to: GET /api/v1/rppg/predictions on Node.js
+
+        Use this to populate the rPPG prediction trend charts.
+      summary: Get rPPG prediction history
+      tags:
+      - rPPG
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/rppg/session:
+    post:
+      operationId: api_v1_rppg_session_create
+      description: |-
+        Log an rPPG (HRV) session.
+        Proxied to: POST /api/v1/rppg/session on Node.js
+
+        Call this after the user completes an rPPG measurement session.
+      summary: Log an rPPG (HRV) session
+      tags:
+      - rPPG
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RppgSessionRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/RppgSessionRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/RppgSessionRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RppgSession'
+          description: ''
+  /api/v1/rppg/sessions:
+    get:
+      operationId: api_v1_rppg_sessions_retrieve
+      description: |-
+        Get rPPG session history for the authenticated user.
+        Proxied to: GET /api/v1/rppg/sessions on Node.js
+
+        Use this to populate the rPPG measurement history.
+      summary: Get rPPG session history
+      tags:
+      - rPPG
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/settings/devices/:
+    get:
+      operationId: device_list
+      summary: List connected devices
+      tags:
+      - Settings
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: device_list_2
+      summary: Connect a new wearable device
+      tags:
+      - Settings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConnectDeviceRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ConnectDeviceRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ConnectDeviceRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/settings/devices/{id}/:
+    get:
+      operationId: device_list_4
+      summary: Get a connected device
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Settings
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    patch:
+      operationId: device_list_5
+      summary: Update device sync settings
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Settings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedUpdateDeviceRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedUpdateDeviceRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedUpdateDeviceRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    delete:
+      operationId: device_list_3
+      summary: Disconnect a device
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Settings
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/settings/devices/{id}/sync/:
+    post:
+      operationId: api_v1_settings_devices_sync_create
+      summary: Trigger manual device sync
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Settings
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/settings/notifications/:
+    get:
+      operationId: api_v1_settings_notifications_retrieve
+      summary: Get notification preferences
+      tags:
+      - Settings
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    patch:
+      operationId: api_v1_settings_notifications_partial_update
+      summary: Update notification preferences
+      tags:
+      - Settings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedNotificationPreferencesRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedNotificationPreferencesRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedNotificationPreferencesRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/settings/privacy/:
+    get:
+      operationId: api_v1_settings_privacy_retrieve
+      summary: Get privacy settings
+      tags:
+      - Settings
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    patch:
+      operationId: api_v1_settings_privacy_partial_update
+      summary: Update privacy and consent settings
+      tags:
+      - Settings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedPrivacySettingsRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedPrivacySettingsRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedPrivacySettingsRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/settings/privacy/delete-account/:
+    delete:
+      operationId: api_v1_settings_privacy_delete_account_destroy
+      summary: Permanently delete account and all data
+      tags:
+      - Settings
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/settings/privacy/export/:
+    post:
+      operationId: api_v1_settings_privacy_export_create
+      summary: Request a full data export
+      tags:
+      - Settings
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /health/:
+    get:
+      operationId: health_retrieve
+      description: User-facing health check (just service online)
+      summary: Simple health probe
+      tags:
+      - System
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+components:
+  schemas:
+    BlankEnum:
+      enum:
+      - ''
+    ChangePasswordRequest:
+      type: object
+      description: |-
+        Allows an authenticated user to change their password.
+        If user must_change_password=True, old_password is not required (temp password scenario).
+      properties:
+        old_password:
+          type: string
+        new_password:
+          type: string
+          minLength: 8
+      required:
+      - new_password
+    ClinicianOnboardingRequest:
+      type: object
+      description: Clinician onboarding - sets specialization and downstream expertise.
+      properties:
+        specialization:
+          $ref: '#/components/schemas/SpecializationEnum'
+        downstream_expertise:
+          type: array
+          items:
+            $ref: '#/components/schemas/DownstreamExpertiseEnum'
+          maxItems: 10
+          minItems: 1
+        license_number:
+          type: string
+          maxLength: 50
+        years_of_experience:
+          type: integer
+          minimum: 0
+          default: 0
+        bio:
+          type: string
+      required:
+      - downstream_expertise
+      - specialization
+    ConditionConfirmedEnum:
+      enum:
+      - pcos_confirmed
+      - hormonal_imbalance
+      - metabolic_syndrome
+      - multiple
+      - none_confirmed
+      type: string
+      description: |-
+        * `pcos_confirmed` - pcos_confirmed
+        * `hormonal_imbalance` - hormonal_imbalance
+        * `metabolic_syndrome` - metabolic_syndrome
+        * `multiple` - multiple
+        * `none_confirmed` - none_confirmed
+    ConditionEnum:
+      enum:
+      - pcos
+      - maternal
+      - cardiovascular
+      type: string
+      description: |-
+        * `pcos` - PCOS
+        * `maternal` - Maternal Health
+        * `cardiovascular` - Cardiovascular
+    ConfirmPasswordRequest:
+      type: object
+      description: |-
+        Requires the user's current password before performing a destructive action
+        (e.g. account deletion). Used as a final confirmation step.
+      properties:
+        password:
+          type: string
+          minLength: 1
+          description: Current password to confirm the action.
+      required:
+      - password
+    ConnectDeviceRequest:
+      type: object
+      description: Used when connecting a new device.
+      properties:
+        device_type:
+          $ref: '#/components/schemas/DeviceTypeEnum'
+        device_name:
+          type: string
+          maxLength: 100
+        sync_frequency:
+          $ref: '#/components/schemas/SyncFrequencyEnum'
+        background_sync:
+          type: boolean
+      required:
+      - device_type
+    CreateClinicianRequest:
+      type: object
+      description: Used by FHC Admin to create clinician accounts.
+      properties:
+        full_name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        email:
+          type: string
+          format: email
+          minLength: 1
+        specialization:
+          allOf:
+          - $ref: '#/components/schemas/SpecializationEnum'
+          default: general_practice
+        license_number:
+          type: string
+          maxLength: 50
+        years_of_experience:
+          type: integer
+          minimum: 0
+          default: 0
+        bio:
+          type: string
+      required:
+      - email
+      - full_name
+    CreateFHCStaffRequest:
+      type: object
+      description: Used by FHC Admin to create FMC staff accounts.
+      properties:
+        full_name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        email:
+          type: string
+          format: email
+          minLength: 1
+        staff_role:
+          $ref: '#/components/schemas/CreateFHCStaffStaffRoleEnum'
+        employee_id:
+          type: string
+          maxLength: 50
+      required:
+      - email
+      - full_name
+      - staff_role
+    CreateFHCStaffStaffRoleEnum:
+      enum:
+      - coordinator
+      - triage
+      - records
+      - other
+      type: string
+      description: |-
+        * `coordinator` - Case Coordinator
+        * `triage` - Triage Officer
+        * `records` - Records Officer
+        * `other` - Other
+    CreateHCCStaffRequest:
+      type: object
+      description: Used by HCC Admin to create PHC staff accounts.
+      properties:
+        full_name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        email:
+          type: string
+          format: email
+          minLength: 1
+        staff_role:
+          $ref: '#/components/schemas/StaffRole6b7Enum'
+        employee_id:
+          type: string
+          maxLength: 50
+      required:
+      - email
+      - full_name
+      - staff_role
+    CustomTokenObtainPairRequest:
+      type: object
+      description: |-
+        Extends the default JWT token with user metadata embedded in the payload.
+
+        Token claims added:
+          - email    : user's email address
+          - role     : user's role (used by frontend to route to correct portal)
+          - name     : user's full name
+          - unique_id: user's unique ID (MDC/YYYY/NNNNNN format)
+
+        Login accepts either email or unique_id (e.g., MDC/2024/001234).
+      properties:
+        email:
+          type: string
+          writeOnly: true
+          minLength: 1
+        password:
+          type: string
+          writeOnly: true
+          minLength: 1
+      required:
+      - email
+      - password
+    CyclePhaseEnum:
+      enum:
+      - Menstrual
+      - Follicular
+      - Ovulatory
+      - Luteal
+      type: string
+      description: |-
+        * `Menstrual` - Menstrual
+        * `Follicular` - Follicular
+        * `Ovulatory` - Ovulatory
+        * `Luteal` - Luteal
+    CycleRegularityEnum:
+      enum:
+      - regular
+      - irregular
+      type: string
+      description: |-
+        * `regular` - Regular
+        * `irregular` - Irregular
+    DeviceTypeEnum:
+      enum:
+      - apple_watch
+      - fitbit
+      - garmin
+      - oura_ring
+      - whoop
+      type: string
+      description: |-
+        * `apple_watch` - Apple Watch
+        * `fitbit` - Fitbit
+        * `garmin` - Garmin
+        * `oura_ring` - Oura Ring
+        * `whoop` - WHOOP
+    DiagnosticBasisEnum:
+      enum:
+      - clinical_criteria
+      - lab_results
+      - imaging
+      - combined
+      type: string
+      description: |-
+        * `clinical_criteria` - clinical_criteria
+        * `lab_results` - lab_results
+        * `imaging` - imaging
+        * `combined` - combined
+    DiseaseNameEnum:
+      enum:
+      - PCOS
+      - CVD
+      - T2D
+      - Infertility
+      - Dysmenorrhea
+      - Metabolic
+      - MentalHealth
+      - Stroke
+      - Endometrial
+      type: string
+      description: |-
+        * `PCOS` - PCOS
+        * `CVD` - Cardiovascular Disease
+        * `T2D` - Type 2 Diabetes
+        * `Infertility` - Infertility
+        * `Dysmenorrhea` - Dysmenorrhea
+        * `Metabolic` - Metabolic Syndrome
+        * `MentalHealth` - Mental Health
+        * `Stroke` - Stroke Risk
+        * `Endometrial` - Endometrial Cancer
+    DownstreamExpertiseEnum:
+      enum:
+      - type2_diabetes
+      - cardiovascular_disease
+      - obesity
+      - infertility
+      - endometrial_hyperplasia
+      - fatty_liver
+      - sleep_apnea
+      - pregnancy_complications
+      - mental_health
+      - dermatologic
+      type: string
+      description: |-
+        * `type2_diabetes` - type2_diabetes
+        * `cardiovascular_disease` - cardiovascular_disease
+        * `obesity` - obesity
+        * `infertility` - infertility
+        * `endometrial_hyperplasia` - endometrial_hyperplasia
+        * `fatty_liver` - fatty_liver
+        * `sleep_apnea` - sleep_apnea
+        * `pregnancy_complications` - pregnancy_complications
+        * `mental_health` - mental_health
+        * `dermatologic` - dermatologic
+    EmailVerificationRequest:
+      type: object
+      description: Accepts the raw verification token from the email link.
+      properties:
+        token:
+          type: string
+          minLength: 1
+      required:
+      - token
+    EnsembleWeightConfig:
+      type: object
+      description: |-
+        Serializer for EnsembleWeightConfig.
+        Allows admin to view and update ensemble weights per disease.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        disease_name:
+          allOf:
+          - $ref: '#/components/schemas/DiseaseNameEnum'
+          description: |-
+            Disease this weight configuration applies to
+
+            * `PCOS` - PCOS
+            * `CVD` - Cardiovascular Disease
+            * `T2D` - Type 2 Diabetes
+            * `Infertility` - Infertility
+            * `Dysmenorrhea` - Dysmenorrhea
+            * `Metabolic` - Metabolic Syndrome
+            * `MentalHealth` - Mental Health
+            * `Stroke` - Stroke Risk
+            * `Endometrial` - Endometrial Cancer
+        symptom_weight:
+          type: number
+          format: double
+          maximum: 1.0
+          minimum: 0.0
+          description: Weight for Symptom Intensity model (0.0-1.0)
+        menstrual_weight:
+          type: number
+          format: double
+          maximum: 1.0
+          minimum: 0.0
+          description: Weight for Menstrual model (0.0-1.0)
+        rppg_weight:
+          type: number
+          format: double
+          maximum: 1.0
+          minimum: 0.0
+          description: Weight for rPPG/HRV model (0.0-1.0)
+        mood_weight:
+          type: number
+          format: double
+          maximum: 1.0
+          minimum: 0.0
+          description: Weight for Mood model (0.0-1.0)
+        rotterdam_2_criteria_boost:
+          type: number
+          format: double
+          maximum: 0.2
+          minimum: 0.0
+          description: Boost when 2 Rotterdam criteria are met (+0.05 default)
+        rotterdam_3_criteria_boost:
+          type: number
+          format: double
+          maximum: 0.3
+          minimum: 0.0
+          description: Boost when all 3 Rotterdam criteria are met (+0.10 default)
+        metabolic_reproductive_boost:
+          type: number
+          format: double
+          maximum: 0.2
+          minimum: 0.0
+          description: Boost when metabolic + reproductive both high (+0.05 default)
+        mood_rppg_stress_boost:
+          type: number
+          format: double
+          maximum: 0.2
+          minimum: 0.0
+          description: Boost when mood + rPPG stress both moderate+ (+0.03 default)
+        is_active:
+          type: boolean
+          description: Whether this configuration is currently active
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - disease_name
+      - id
+      - updated_at
+    EnsembleWeightConfigRequest:
+      type: object
+      description: |-
+        Serializer for EnsembleWeightConfig.
+        Allows admin to view and update ensemble weights per disease.
+      properties:
+        disease_name:
+          allOf:
+          - $ref: '#/components/schemas/DiseaseNameEnum'
+          description: |-
+            Disease this weight configuration applies to
+
+            * `PCOS` - PCOS
+            * `CVD` - Cardiovascular Disease
+            * `T2D` - Type 2 Diabetes
+            * `Infertility` - Infertility
+            * `Dysmenorrhea` - Dysmenorrhea
+            * `Metabolic` - Metabolic Syndrome
+            * `MentalHealth` - Mental Health
+            * `Stroke` - Stroke Risk
+            * `Endometrial` - Endometrial Cancer
+        symptom_weight:
+          type: number
+          format: double
+          maximum: 1.0
+          minimum: 0.0
+          description: Weight for Symptom Intensity model (0.0-1.0)
+        menstrual_weight:
+          type: number
+          format: double
+          maximum: 1.0
+          minimum: 0.0
+          description: Weight for Menstrual model (0.0-1.0)
+        rppg_weight:
+          type: number
+          format: double
+          maximum: 1.0
+          minimum: 0.0
+          description: Weight for rPPG/HRV model (0.0-1.0)
+        mood_weight:
+          type: number
+          format: double
+          maximum: 1.0
+          minimum: 0.0
+          description: Weight for Mood model (0.0-1.0)
+        rotterdam_2_criteria_boost:
+          type: number
+          format: double
+          maximum: 0.2
+          minimum: 0.0
+          description: Boost when 2 Rotterdam criteria are met (+0.05 default)
+        rotterdam_3_criteria_boost:
+          type: number
+          format: double
+          maximum: 0.3
+          minimum: 0.0
+          description: Boost when all 3 Rotterdam criteria are met (+0.10 default)
+        metabolic_reproductive_boost:
+          type: number
+          format: double
+          maximum: 0.2
+          minimum: 0.0
+          description: Boost when metabolic + reproductive both high (+0.05 default)
+        mood_rppg_stress_boost:
+          type: number
+          format: double
+          maximum: 0.2
+          minimum: 0.0
+          description: Boost when mood + rPPG stress both moderate+ (+0.03 default)
+        is_active:
+          type: boolean
+          description: Whether this configuration is currently active
+      required:
+      - disease_name
+    EthnicityEnum:
+      enum:
+      - white
+      - black
+      - hispanic
+      - asian
+      - south_asian
+      - middle_eastern
+      - mixed
+      - prefer_not
+      type: string
+      description: |-
+        * `white` - White/Caucasian
+        * `black` - Black/African American
+        * `hispanic` - Hispanic/Latino
+        * `asian` - Asian
+        * `south_asian` - South Asian
+        * `middle_eastern` - Middle Eastern
+        * `mixed` - Mixed/Other
+        * `prefer_not` - Prefer not to say
+    EveningCheckinRequest:
+      type: object
+      description: |-
+        Mirrors EveningCheckinScreen exactly.
+        Computed: breast_pain_avg, cyclic_mastalgia_score, breast_soreness_vas,
+                  mastalgia_severity, gags_score, acne_severity_likert, acne_severity_label.
+      properties:
+        breast_left_vas:
+          type: number
+          format: double
+          maximum: 10.0
+          minimum: 0.0
+          nullable: true
+        breast_right_vas:
+          type: number
+          format: double
+          maximum: 10.0
+          minimum: 0.0
+          nullable: true
+        mastalgia_side:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/MastalgiaSideEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        mastalgia_quality:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/MastalgiaQualityEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        acne_forehead:
+          type: integer
+          maximum: 4
+          minimum: 0
+        acne_right_cheek:
+          type: integer
+          maximum: 4
+          minimum: 0
+        acne_left_cheek:
+          type: integer
+          maximum: 4
+          minimum: 0
+        acne_nose:
+          type: integer
+          maximum: 4
+          minimum: 0
+        acne_chin:
+          type: integer
+          maximum: 4
+          minimum: 0
+        acne_chest_back:
+          type: integer
+          maximum: 4
+          minimum: 0
+        bloating_delta_cm:
+          type: number
+          format: double
+          nullable: true
+          description: Abdominal circumference Δ in cm
+        unusual_bleeding:
+          type: boolean
+          description: Any bleeding outside period window
+    FMCDiagnosticsRequestRequest:
+      type: object
+      description: Serializer for diagnostics request.
+      properties:
+        patient_id:
+          type: string
+          format: uuid
+        tests:
+          type: array
+          items:
+            type: string
+            minLength: 1
+        urgency:
+          $ref: '#/components/schemas/UrgencyEnum'
+        custom_note:
+          type: string
+      required:
+      - patient_id
+      - tests
+      - urgency
+    FMCDischargeRequest:
+      type: object
+      description: Serializer for case discharge.
+      properties:
+        condition_confirmed:
+          $ref: '#/components/schemas/ConditionConfirmedEnum'
+        diagnostic_basis:
+          $ref: '#/components/schemas/DiagnosticBasisEnum'
+        treatment_summary:
+          type: string
+          minLength: 1
+          maxLength: 5000
+        follow_up_plan:
+          $ref: '#/components/schemas/FollowUpPlanEnum'
+        closing_score:
+          type: number
+          format: double
+        discharge_letter:
+          type: string
+          minLength: 1
+          maxLength: 10000
+      required:
+      - closing_score
+      - condition_confirmed
+      - diagnostic_basis
+      - discharge_letter
+      - follow_up_plan
+      - treatment_summary
+    FederalHealthCenterRequest:
+      type: object
+      description: Full FMC record for FHC Admin and Platform Admin.
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        code:
+          type: string
+          minLength: 1
+          description: e.g. FMC-ABJ-001
+          maxLength: 20
+        address:
+          type: string
+        state:
+          type: string
+          maxLength: 100
+        zone:
+          type: string
+          description: Geopolitical zone
+          maxLength: 100
+        phone:
+          type: string
+          maxLength: 20
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        status:
+          $ref: '#/components/schemas/StatusEnum'
+      required:
+      - code
+      - name
+    FollowUpPlanEnum:
+      enum:
+      - discharged_to_phc
+      - self_monitor
+      - specialist_followup
+      - tertiary_referral
+      type: string
+      description: |-
+        * `discharged_to_phc` - discharged_to_phc
+        * `self_monitor` - self_monitor
+        * `specialist_followup` - specialist_followup
+        * `tertiary_referral` - tertiary_referral
+    ForgotPasswordRequest:
+      type: object
+      description: Triggers a password reset email for the given address.
+      properties:
+        email:
+          type: string
+          format: email
+          minLength: 1
+      required:
+      - email
+    GenderEnum:
+      enum:
+      - male
+      - female
+      type: string
+      description: |-
+        * `male` - Male
+        * `female` - Female
+    HRVSubmitRequest:
+      type: object
+      description: Submitted after rPPG camera session completes.
+      properties:
+        session_id:
+          type: string
+          format: uuid
+        hrv_sdnn_ms:
+          type: number
+          format: double
+          maximum: 500
+          minimum: 0
+        hrv_rmssd_ms:
+          type: number
+          format: double
+          maximum: 500
+          minimum: 0
+        skipped:
+          type: boolean
+          default: false
+      required:
+      - session_id
+    HealthCareCenterRequest:
+      type: object
+      description: |-
+        Full PHC record for HCC Admin and Platform Admin.
+        escalates_to_state_hospital_name: read-only name of the linked State Hospital.
+        Platform Admin can set escalates_to_state_hospital. HCC Admin cannot.
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        code:
+          type: string
+          minLength: 1
+          description: Short identifier e.g. PHC-LGS-001
+          maxLength: 20
+        address:
+          type: string
+        state:
+          type: string
+          description: Nigerian state. Used for fallback FMC matching.
+          maxLength: 100
+        lga:
+          type: string
+          description: Local Government Area. Used for proximity filtering.
+          maxLength: 100
+        phone:
+          type: string
+          maxLength: 20
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        website:
+          type: string
+          format: uri
+          maxLength: 200
+        status:
+          $ref: '#/components/schemas/StatusEnum'
+        escalates_to_state_hospital:
+          type: string
+          format: uuid
+          nullable: true
+          description: The State General Hospital this PHC escalates Moderate/Severe
+            patients to.
+        notify_on_severe:
+          type: boolean
+          description: Notify PHC admin/staff when a registered patient reaches Severe
+            risk.
+        notify_on_very_severe:
+          type: boolean
+          description: Notify PHC admin/staff when a registered patient reaches Very
+            Severe risk.
+      required:
+      - code
+      - name
+    HirsutismMFGRequest:
+      type: object
+      description: |-
+        9 body areas + computed total and severity.
+        Each area 0–4.
+      properties:
+        assessed_date:
+          type: string
+          format: date
+        mfg_upper_lip:
+          type: integer
+          maximum: 4
+          minimum: 0
+          description: Upper lip
+        mfg_chin:
+          type: integer
+          maximum: 4
+          minimum: 0
+          description: Chin
+        mfg_chest:
+          type: integer
+          maximum: 4
+          minimum: 0
+          description: Chest
+        mfg_upper_back:
+          type: integer
+          maximum: 4
+          minimum: 0
+          description: Upper back
+        mfg_lower_back:
+          type: integer
+          maximum: 4
+          minimum: 0
+          description: Lower back
+        mfg_upper_abdomen:
+          type: integer
+          maximum: 4
+          minimum: 0
+          description: Upper abdomen
+        mfg_lower_abdomen:
+          type: integer
+          maximum: 4
+          minimum: 0
+          description: Lower abdomen
+        mfg_upper_arm:
+          type: integer
+          maximum: 4
+          minimum: 0
+          description: Upper arm
+        mfg_thigh:
+          type: integer
+          maximum: 4
+          minimum: 0
+          description: Thigh
+    LogoutRequest:
+      type: object
+      description: Blacklists the provided refresh token, invalidating the session.
+      properties:
+        refresh:
+          type: string
+          minLength: 1
+          description: The refresh token to blacklist.
+      required:
+      - refresh
+    MastalgiaQualityEnum:
+      enum:
+      - Sharp
+      - Dull
+      - Pressure
+      type: string
+      description: |-
+        * `Sharp` - Sharp
+        * `Dull` - Dull
+        * `Pressure` - Pressure
+    MastalgiaSideEnum:
+      enum:
+      - Unilateral
+      - Bilateral
+      type: string
+      description: |-
+        * `Unilateral` - Unilateral
+        * `Bilateral` - Bilateral
+    MenstrualLogCycleRequest:
+      type: object
+      properties:
+        period_start_date:
+          type: string
+          format: date
+        period_end_date:
+          type: string
+          format: date
+        bleeding_scores:
+          type: array
+          items:
+            type: integer
+            maximum: 4
+            minimum: 1
+          description: 'One integer per day: 1=Spotting 2=Light 3=Medium 4=Heavy'
+        has_ovulation_peak:
+          type: boolean
+        unusual_bleeding:
+          type: boolean
+        rppg_ovulation_day:
+          type: integer
+          nullable: true
+      required:
+      - bleeding_scores
+      - has_ovulation_peak
+      - period_end_date
+      - period_start_date
+      - unusual_bleeding
+    MoodLogAffectRequest:
+      type: object
+      properties:
+        affect_valence:
+          type: integer
+          maximum: 3
+          minimum: 1
+          description: 1=Negative 2=Neutral 3=Positive
+        affect_arousal:
+          type: integer
+          maximum: 3
+          minimum: 1
+          description: 1=Low 2=Medium 3=High
+        affect_quadrant:
+          type: string
+          minLength: 1
+        log_date:
+          type: string
+          format: date
+      required:
+      - affect_arousal
+      - affect_valence
+    MoodLogCompleteRequest:
+      type: object
+      properties:
+        phq4_item1:
+          type: integer
+          maximum: 3
+          minimum: 0
+        phq4_item2:
+          type: integer
+          maximum: 3
+          minimum: 0
+        phq4_item3:
+          type: integer
+          maximum: 3
+          minimum: 0
+        phq4_item4:
+          type: integer
+          maximum: 3
+          minimum: 0
+        affect_valence:
+          type: integer
+          maximum: 3
+          minimum: 1
+        affect_arousal:
+          type: integer
+          maximum: 3
+          minimum: 1
+        affect_quadrant:
+          type: string
+          minLength: 1
+        cognitive_load_score:
+          type: integer
+          maximum: 5
+          minimum: 1
+        sleep_satisfaction:
+          type: integer
+          maximum: 5
+          minimum: 1
+        hours_slept:
+          type: number
+          format: double
+        cycle_phase:
+          $ref: '#/components/schemas/CyclePhaseEnum'
+        log_date:
+          type: string
+          format: date
+      required:
+      - affect_arousal
+      - affect_valence
+      - cognitive_load_score
+      - phq4_item1
+      - phq4_item2
+      - phq4_item3
+      - phq4_item4
+      - sleep_satisfaction
+    MoodLogFocusRequest:
+      type: object
+      properties:
+        cognitive_load_score:
+          type: integer
+          maximum: 5
+          minimum: 1
+        focus_score:
+          type: integer
+          maximum: 10
+          minimum: 1
+        memory_score:
+          type: integer
+          maximum: 10
+          minimum: 1
+        mental_fatigue:
+          type: integer
+          maximum: 10
+          minimum: 1
+        log_date:
+          type: string
+          format: date
+      required:
+      - cognitive_load_score
+    MoodLogPHQ4Request:
+      type: object
+      properties:
+        phq4_item1:
+          type: integer
+          maximum: 3
+          minimum: 0
+          description: Nervous/anxious/on edge
+        phq4_item2:
+          type: integer
+          maximum: 3
+          minimum: 0
+          description: Cannot stop worrying
+        phq4_item3:
+          type: integer
+          maximum: 3
+          minimum: 0
+          description: Little interest or pleasure
+        phq4_item4:
+          type: integer
+          maximum: 3
+          minimum: 0
+          description: Feeling down/depressed
+        log_date:
+          type: string
+          format: date
+          description: YYYY-MM-DD, defaults to today
+      required:
+      - phq4_item1
+      - phq4_item2
+      - phq4_item3
+      - phq4_item4
+    MoodLogSleepRequest:
+      type: object
+      properties:
+        sleep_satisfaction:
+          type: integer
+          maximum: 5
+          minimum: 1
+        hours_slept:
+          type: number
+          format: double
+        log_date:
+          type: string
+          format: date
+      required:
+      - sleep_satisfaction
+    MorningCheckinRequest:
+      type: object
+      description: |-
+        Used for both save-in-progress (all optional) and final submit.
+        Computed fields (hyperalgesia_index, hyperalgesia_severity) are read-only.
+      properties:
+        fatigue_vas:
+          type: number
+          format: double
+          maximum: 10.0
+          minimum: 0.0
+          nullable: true
+        pelvic_pressure_vas:
+          type: number
+          format: double
+          maximum: 10.0
+          minimum: 0.0
+          nullable: true
+        psq_skin_sensitivity:
+          type: number
+          format: double
+          maximum: 10.0
+          minimum: 0.0
+          nullable: true
+          description: 'Q1: Skin sensitivity to light touch'
+        psq_muscle_pressure_pain:
+          type: number
+          format: double
+          maximum: 10.0
+          minimum: 0.0
+          nullable: true
+          description: 'Q2: Muscle pressure pain'
+        psq_body_tenderness:
+          type: number
+          format: double
+          maximum: 10.0
+          minimum: 0.0
+          nullable: true
+          description: 'Q3: Overall body tenderness'
+    NullEnum:
+      enum:
+      - null
+    OnboardingProfile:
+      type: object
+      description: |-
+        Full read serializer — returned by GET /api/v1/onboarding/profile/
+        and after OnboardingCompleteView.
+
+        KEY FIELDS FOR PATIENT PROFILE (P9 screen):
+          registered_hcc_detail  — the patient's home PHC (they can change this)
+          escalation_fmc_detail  — the FMC this patient escalates to (read-only,
+                                    derived from PHC.escalates_to chain)
+
+        The frontend shows both on the P9 profile screen so the patient can see:
+          "Your home PHC: Surulere Primary Health Centre"
+          "Your escalation FMC: Lagos University Teaching Hospital"
+
+        The patient CANNOT directly change the FMC — it is determined by their PHC.
+        If they want to change their FMC, they must submit a ChangeRequest.
+      properties:
+        full_name:
+          type: string
+          maxLength: 255
+        age:
+          type: integer
+          maximum: 32767
+          minimum: 0
+          nullable: true
+        ethnicity:
+          oneOf:
+          - $ref: '#/components/schemas/EthnicityEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        gender:
+          oneOf:
+          - $ref: '#/components/schemas/GenderEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        phone_number:
+          type: string
+          maxLength: 20
+        height_cm:
+          type: number
+          format: double
+          nullable: true
+        weight_kg:
+          type: number
+          format: double
+          nullable: true
+        bmi:
+          type: number
+          format: double
+          readOnly: true
+        has_skin_changes:
+          type: boolean
+          nullable: true
+        cycle_length_days:
+          type: integer
+          maximum: 32767
+          minimum: 0
+          nullable: true
+        periods_per_year:
+          type: integer
+          maximum: 32767
+          minimum: 0
+          nullable: true
+        cycle_regularity:
+          oneOf:
+          - $ref: '#/components/schemas/CycleRegularityEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        selected_wearable:
+          oneOf:
+          - $ref: '#/components/schemas/SelectedWearableEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        rppg_baseline_captured:
+          type: boolean
+        rppg_captured_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        state:
+          type: string
+          maxLength: 100
+        lga:
+          type: string
+          maxLength: 100
+        registered_hcc:
+          type: string
+          format: uuid
+          nullable: true
+          description: The Primary Health Centre this patient is registered with.
+            Set during onboarding (patient picks from nearby PHCs filtered by state/LGA),
+            or auto-set when PHC staff registers a walk-in patient. This is the patient's
+            permanent home facility for Low/Moderate escalation routing.
+        registered_hcc_detail:
+          type: string
+          readOnly: true
+        escalation_fmc_detail:
+          type: string
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - bmi
+      - created_at
+      - escalation_fmc_detail
+      - registered_hcc_detail
+      - rppg_captured_at
+      - updated_at
+    PHCAdviceRequest:
+      type: object
+      description: Request serializer for sending lifestyle advice to a patient.
+      properties:
+        condition:
+          $ref: '#/components/schemas/ConditionEnum'
+        message:
+          type: string
+          minLength: 1
+          maxLength: 2000
+        followup_date:
+          type: string
+          format: date
+          nullable: true
+      required:
+      - condition
+      - message
+    PatchedEveningCheckinRequest:
+      type: object
+      description: |-
+        Mirrors EveningCheckinScreen exactly.
+        Computed: breast_pain_avg, cyclic_mastalgia_score, breast_soreness_vas,
+                  mastalgia_severity, gags_score, acne_severity_likert, acne_severity_label.
+      properties:
+        breast_left_vas:
+          type: number
+          format: double
+          maximum: 10.0
+          minimum: 0.0
+          nullable: true
+        breast_right_vas:
+          type: number
+          format: double
+          maximum: 10.0
+          minimum: 0.0
+          nullable: true
+        mastalgia_side:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/MastalgiaSideEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        mastalgia_quality:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/MastalgiaQualityEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        acne_forehead:
+          type: integer
+          maximum: 4
+          minimum: 0
+        acne_right_cheek:
+          type: integer
+          maximum: 4
+          minimum: 0
+        acne_left_cheek:
+          type: integer
+          maximum: 4
+          minimum: 0
+        acne_nose:
+          type: integer
+          maximum: 4
+          minimum: 0
+        acne_chin:
+          type: integer
+          maximum: 4
+          minimum: 0
+        acne_chest_back:
+          type: integer
+          maximum: 4
+          minimum: 0
+        bloating_delta_cm:
+          type: number
+          format: double
+          nullable: true
+          description: Abdominal circumference Δ in cm
+        unusual_bleeding:
+          type: boolean
+          description: Any bleeding outside period window
+    PatchedFederalHealthCenterRequest:
+      type: object
+      description: Full FMC record for FHC Admin and Platform Admin.
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        code:
+          type: string
+          minLength: 1
+          description: e.g. FMC-ABJ-001
+          maxLength: 20
+        address:
+          type: string
+        state:
+          type: string
+          maxLength: 100
+        zone:
+          type: string
+          description: Geopolitical zone
+          maxLength: 100
+        phone:
+          type: string
+          maxLength: 20
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        status:
+          $ref: '#/components/schemas/StatusEnum'
+    PatchedHCCStaffProfileRequest:
+      type: object
+      properties:
+        staff_role:
+          $ref: '#/components/schemas/StaffRole6b7Enum'
+        employee_id:
+          type: string
+          maxLength: 50
+        is_active:
+          type: boolean
+    PatchedHealthCareCenterRequest:
+      type: object
+      description: |-
+        Full PHC record for HCC Admin and Platform Admin.
+        escalates_to_state_hospital_name: read-only name of the linked State Hospital.
+        Platform Admin can set escalates_to_state_hospital. HCC Admin cannot.
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        code:
+          type: string
+          minLength: 1
+          description: Short identifier e.g. PHC-LGS-001
+          maxLength: 20
+        address:
+          type: string
+        state:
+          type: string
+          description: Nigerian state. Used for fallback FMC matching.
+          maxLength: 100
+        lga:
+          type: string
+          description: Local Government Area. Used for proximity filtering.
+          maxLength: 100
+        phone:
+          type: string
+          maxLength: 20
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        website:
+          type: string
+          format: uri
+          maxLength: 200
+        status:
+          $ref: '#/components/schemas/StatusEnum'
+        escalates_to_state_hospital:
+          type: string
+          format: uuid
+          nullable: true
+          description: The State General Hospital this PHC escalates Moderate/Severe
+            patients to.
+        notify_on_severe:
+          type: boolean
+          description: Notify PHC admin/staff when a registered patient reaches Severe
+            risk.
+        notify_on_very_severe:
+          type: boolean
+          description: Notify PHC admin/staff when a registered patient reaches Very
+            Severe risk.
+    PatchedMorningCheckinRequest:
+      type: object
+      description: |-
+        Used for both save-in-progress (all optional) and final submit.
+        Computed fields (hyperalgesia_index, hyperalgesia_severity) are read-only.
+      properties:
+        fatigue_vas:
+          type: number
+          format: double
+          maximum: 10.0
+          minimum: 0.0
+          nullable: true
+        pelvic_pressure_vas:
+          type: number
+          format: double
+          maximum: 10.0
+          minimum: 0.0
+          nullable: true
+        psq_skin_sensitivity:
+          type: number
+          format: double
+          maximum: 10.0
+          minimum: 0.0
+          nullable: true
+          description: 'Q1: Skin sensitivity to light touch'
+        psq_muscle_pressure_pain:
+          type: number
+          format: double
+          maximum: 10.0
+          minimum: 0.0
+          nullable: true
+          description: 'Q2: Muscle pressure pain'
+        psq_body_tenderness:
+          type: number
+          format: double
+          maximum: 10.0
+          minimum: 0.0
+          nullable: true
+          description: 'Q3: Overall body tenderness'
+    PatchedNotificationPreferencesRequest:
+      type: object
+      properties:
+        morning_time:
+          type: string
+          minLength: 1
+          maxLength: 5
+        evening_time:
+          type: string
+          minLength: 1
+          maxLength: 5
+        morning_checkin_enabled:
+          type: boolean
+        evening_checkin_enabled:
+          type: boolean
+        weekly_prompts_enabled:
+          type: boolean
+        period_alerts_enabled:
+          type: boolean
+        risk_score_updates_enabled:
+          type: boolean
+        wearable_sync_reminders:
+          type: boolean
+        do_not_disturb:
+          type: boolean
+    PatchedPrivacySettingsRequest:
+      type: object
+      properties:
+        behavioral_data_enabled:
+          type: boolean
+        wearable_data_enabled:
+          type: boolean
+        clinical_data_enabled:
+          type: boolean
+        share_with_clinician:
+          type: boolean
+        anonymized_research:
+          type: boolean
+        model_improvement:
+          type: boolean
+    PatchedStep1PersonalInfoRequest:
+      type: object
+      properties:
+        full_name:
+          type: string
+          maxLength: 255
+        age:
+          type: integer
+          maximum: 32767
+          minimum: 0
+          nullable: true
+        ethnicity:
+          oneOf:
+          - $ref: '#/components/schemas/EthnicityEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        gender:
+          oneOf:
+          - $ref: '#/components/schemas/GenderEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        phone_number:
+          type: string
+          maxLength: 20
+    PatchedStep2PhysicalMeasurementsRequest:
+      type: object
+      properties:
+        height_cm:
+          type: number
+          format: double
+          nullable: true
+        weight_kg:
+          type: number
+          format: double
+          nullable: true
+    PatchedStep3SkinChangesRequest:
+      type: object
+      properties:
+        has_skin_changes:
+          type: boolean
+          nullable: true
+    PatchedStep4MenstrualHistoryRequest:
+      type: object
+      properties:
+        cycle_length_days:
+          type: integer
+          maximum: 32767
+          minimum: 0
+          nullable: true
+        periods_per_year:
+          type: integer
+          maximum: 32767
+          minimum: 0
+          nullable: true
+        cycle_regularity:
+          oneOf:
+          - $ref: '#/components/schemas/CycleRegularityEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+    PatchedStep5WearableRequest:
+      type: object
+      properties:
+        selected_wearable:
+          oneOf:
+          - $ref: '#/components/schemas/SelectedWearableEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+    PatchedStep7PHCRegistrationRequest:
+      type: object
+      description: |-
+        Patient selects their nearest PHC during onboarding (or from P9 profile settings).
+
+        The registered_hcc field is optional — patient can skip this step.
+        Frontend should first call GET /api/v1/centers/phc/?state=X&lga=Y
+        to get filtered options, then submit the chosen UUID here.
+
+        registered_hcc_detail: returns the selected PHC's name, code, state, lga
+        as a read-only nested object so the frontend can confirm the selection.
+      properties:
+        state:
+          type: string
+          description: Patient's state e.g. 'Lagos'. Used to filter nearby PHCs.
+          maxLength: 100
+        lga:
+          type: string
+          description: Patient's LGA e.g. 'Surulere'. Used to filter nearby PHCs.
+          maxLength: 100
+        registered_hcc:
+          type: string
+          format: uuid
+          nullable: true
+          description: UUID of the selected PHC. Null if patient skips this step.
+    PatchedTreatmentPlanRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          minLength: 1
+        medications:
+          nullable: true
+        lifestyle:
+          nullable: true
+        follow_up_days:
+          type: integer
+          maximum: 32767
+          minimum: 0
+        is_active:
+          type: boolean
+    PatchedUpdateClinicianProfileRequest:
+      type: object
+      description: Clinician updates own profile. Cannot change FMC affiliation.
+      properties:
+        specialization:
+          $ref: '#/components/schemas/SpecializationEnum'
+        license_number:
+          type: string
+          maxLength: 50
+        years_of_experience:
+          type: integer
+          maximum: 32767
+          minimum: 0
+        bio:
+          type: string
+        profile_photo:
+          type: string
+          format: binary
+          nullable: true
+    PatchedUpdateDeviceRequest:
+      type: object
+      properties:
+        device_name:
+          type: string
+          maxLength: 100
+        sync_frequency:
+          $ref: '#/components/schemas/SyncFrequencyEnum'
+        background_sync:
+          type: boolean
+    PatchedUpdateProfileRequest:
+      type: object
+      description: |-
+        Allows an authenticated user to update their display name and avatar.
+        Send as multipart/form-data when uploading an image.
+
+        Fields:
+          full_name : optional, minimum 5 characters
+          avatar    : optional, JPEG/PNG/WebP, max 5 MB, uploaded to Cloudinary
+      properties:
+        full_name:
+          type: string
+          minLength: 5
+        avatar:
+          type: string
+          format: binary
+          nullable: true
+    RegisterRequest:
+      type: object
+      description: |-
+        Public self-registration serializer.
+
+        Allowed roles: 'patient' only (default).
+        All other roles (staff, admin, clinician) must be created via the
+        admin panel or center management APIs — attempting to register with
+        a restricted role returns a 400 validation error.
+
+        Fields:
+          full_name        : required
+          email            : required, must be unique
+          password         : required, validated against Django auth validators
+          confirm_password : required, must match password
+          role             : optional, defaults to 'patient'
+      properties:
+        full_name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        email:
+          type: string
+          format: email
+          minLength: 1
+          maxLength: 254
+        password:
+          type: string
+          writeOnly: true
+          minLength: 1
+        confirm_password:
+          type: string
+          writeOnly: true
+          minLength: 1
+        role:
+          $ref: '#/components/schemas/RoleEnum'
+      required:
+      - confirm_password
+      - email
+      - full_name
+      - password
+    ResendVerificationRequest:
+      type: object
+      description: Triggers a new verification email for the given address.
+      properties:
+        email:
+          type: string
+          format: email
+          minLength: 1
+      required:
+      - email
+    ResetPasswordRequest:
+      type: object
+      description: |-
+        Accepts the password reset token from the email link and sets a new password.
+        The token is single-use and expires after PASSWORD_RESET_EXPIRY_HOURS.
+      properties:
+        token:
+          type: string
+          minLength: 1
+        password:
+          type: string
+          minLength: 1
+        confirm_password:
+          type: string
+          minLength: 1
+      required:
+      - confirm_password
+      - password
+      - token
+    RoleEnum:
+      enum:
+      - patient
+      - clinician
+      - hcc_staff
+      - hcc_admin
+      - sth_staff
+      - sth_admin
+      - stth_staff
+      - stth_admin
+      - fhc_staff
+      - fhc_admin
+      - fth_staff
+      - fth_admin
+      - hmo_staff
+      - hmo_admin
+      - clinic_staff
+      - clinic_admin
+      - pvt_staff
+      - pvt_admin
+      - ptth_staff
+      - ptth_admin
+      - admin
+      type: string
+      description: |-
+        * `patient` - Patient
+        * `clinician` - Clinician / Doctor
+        * `hcc_staff` - PHC Staff
+        * `hcc_admin` - PHC Admin
+        * `sth_staff` - State Hospital Staff
+        * `sth_admin` - State Hospital Admin
+        * `stth_staff` - State Teaching Hospital Staff
+        * `stth_admin` - State Teaching Hospital Admin
+        * `fhc_staff` - FMC Staff
+        * `fhc_admin` - FMC Admin
+        * `fth_staff` - Federal Teaching Hospital Staff
+        * `fth_admin` - Federal Teaching Hospital Admin
+        * `hmo_staff` - HMO Staff
+        * `hmo_admin` - HMO Admin
+        * `clinic_staff` - Clinic Staff
+        * `clinic_admin` - Clinic Admin
+        * `pvt_staff` - Private Hospital Staff
+        * `pvt_admin` - Private Hospital Admin
+        * `ptth_staff` - Private Teaching Hospital Staff
+        * `ptth_admin` - Private Teaching Hospital Admin
+        * `admin` - Platform Admin
+    RppgSession:
+      type: object
+      properties:
+        rmssd:
+          type: integer
+          maximum: 300
+          minimum: 5
+          description: RMSSD in milliseconds (5–300)
+        mean_temp:
+          type: number
+          format: double
+          maximum: 42
+          minimum: 25
+          description: Mean skin temperature in °C (25–42)
+        mean_eda:
+          type: number
+          format: double
+          maximum: 20
+          minimum: 0
+          description: Mean electrodermal activity in µS (0–20)
+        asi:
+          type: number
+          format: double
+          maximum: 2
+          minimum: 0
+          nullable: true
+          description: Autonomic Stress Index (0–1.58). Optional.
+        session_type:
+          allOf:
+          - $ref: '#/components/schemas/SessionTypeEnum'
+          default: checkin
+          description: |-
+            Type of check-in session.
+
+            * `morning` - morning
+            * `evening` - evening
+            * `baseline` - baseline
+            * `checkin` - checkin
+        session_quality:
+          nullable: true
+          description: |-
+            Signal quality flag from the device.
+
+            * `good` - good
+            * `poor` - poor
+            * `motion_artifact` - motion_artifact
+          oneOf:
+          - $ref: '#/components/schemas/SessionQualityEnum'
+          - $ref: '#/components/schemas/NullEnum'
+      required:
+      - mean_eda
+      - mean_temp
+      - rmssd
+    RppgSessionRequest:
+      type: object
+      properties:
+        rmssd:
+          type: integer
+          maximum: 300
+          minimum: 5
+          description: RMSSD in milliseconds (5–300)
+        mean_temp:
+          type: number
+          format: double
+          maximum: 42
+          minimum: 25
+          description: Mean skin temperature in °C (25–42)
+        mean_eda:
+          type: number
+          format: double
+          maximum: 20
+          minimum: 0
+          description: Mean electrodermal activity in µS (0–20)
+        asi:
+          type: number
+          format: double
+          maximum: 2
+          minimum: 0
+          nullable: true
+          description: Autonomic Stress Index (0–1.58). Optional.
+        session_type:
+          allOf:
+          - $ref: '#/components/schemas/SessionTypeEnum'
+          default: checkin
+          description: |-
+            Type of check-in session.
+
+            * `morning` - morning
+            * `evening` - evening
+            * `baseline` - baseline
+            * `checkin` - checkin
+        session_quality:
+          nullable: true
+          description: |-
+            Signal quality flag from the device.
+
+            * `good` - good
+            * `poor` - poor
+            * `motion_artifact` - motion_artifact
+          oneOf:
+          - $ref: '#/components/schemas/SessionQualityEnum'
+          - $ref: '#/components/schemas/NullEnum'
+      required:
+      - mean_eda
+      - mean_temp
+      - rmssd
+    SelectedWearableEnum:
+      enum:
+      - apple_watch
+      - fitbit
+      - garmin
+      - oura_ring
+      - none
+      type: string
+      description: |-
+        * `apple_watch` - Apple Watch
+        * `fitbit` - Fitbit
+        * `garmin` - Garmin
+        * `oura_ring` - Oura Ring
+        * `none` - None / Skip
+    SessionQualityEnum:
+      enum:
+      - good
+      - poor
+      - motion_artifact
+      type: string
+      description: |-
+        * `good` - good
+        * `poor` - poor
+        * `motion_artifact` - motion_artifact
+    SessionTypeEnum:
+      enum:
+      - morning
+      - evening
+      - baseline
+      - checkin
+      type: string
+      description: |-
+        * `morning` - morning
+        * `evening` - evening
+        * `baseline` - baseline
+        * `checkin` - checkin
+    SpecializationEnum:
+      enum:
+      - general_practice
+      - family_medicine
+      - internal_medicine
+      - preventive_medicine
+      - obstetrics_gynae
+      - reproductive_endocrinology
+      - gynecologic_oncology
+      - endocrinology
+      - diabetology
+      - cardiology
+      - hypertension
+      - obesity_medicine
+      - behavioral_medicine
+      - gastroenterology
+      - hepatology
+      - sleep_medicine
+      - pulmonology
+      - ent
+      - maternal_fetal_medicine
+      - adolescent_medicine
+      - psychiatry
+      - clinical_psychology
+      - community_mental_health
+      - dermatology
+      - nutrition
+      - community_health
+      - public_health
+      - midwifery
+      - nursing
+      - other
+      type: string
+      description: |-
+        * `general_practice` - General Practice
+        * `family_medicine` - Family Medicine
+        * `internal_medicine` - Internal Medicine
+        * `preventive_medicine` - Preventive Medicine
+        * `obstetrics_gynae` - Obstetrics & Gynaecology
+        * `reproductive_endocrinology` - Reproductive Endocrinology & Infertility
+        * `gynecologic_oncology` - Gynecologic Oncology
+        * `endocrinology` - Endocrinology
+        * `diabetology` - Diabetology
+        * `cardiology` - Cardiology
+        * `hypertension` - Hypertension & Vascular Medicine
+        * `obesity_medicine` - Obesity Medicine
+        * `behavioral_medicine` - Behavioral Medicine
+        * `gastroenterology` - Gastroenterology
+        * `hepatology` - Hepatology
+        * `sleep_medicine` - Sleep Medicine
+        * `pulmonology` - Pulmonology
+        * `ent` - ENT
+        * `maternal_fetal_medicine` - Maternal-Fetal Medicine
+        * `adolescent_medicine` - Adolescent Medicine
+        * `psychiatry` - Psychiatry
+        * `clinical_psychology` - Clinical Psychology
+        * `community_mental_health` - Community Mental Health
+        * `dermatology` - Dermatology
+        * `nutrition` - Nutrition & Dietetics
+        * `community_health` - Community Health
+        * `public_health` - Public Health & Epidemiology
+        * `midwifery` - Midwifery
+        * `nursing` - Nursing
+        * `other` - Other
+    StaffRole6b7Enum:
+      enum:
+      - nurse
+      - cho
+      - assistant
+      - receptionist
+      - other
+      type: string
+      description: |-
+        * `nurse` - Nurse
+        * `cho` - Community Health Officer
+        * `assistant` - Health Assistant
+        * `receptionist` - Receptionist
+        * `other` - Other
+    StatusEnum:
+      enum:
+      - active
+      - inactive
+      - pending
+      type: string
+      description: |-
+        * `active` - Active
+        * `inactive` - Inactive
+        * `pending` - Pending Verification
+    Step1PersonalInfo:
+      type: object
+      properties:
+        full_name:
+          type: string
+          maxLength: 255
+        age:
+          type: integer
+          maximum: 32767
+          minimum: 0
+          nullable: true
+        ethnicity:
+          oneOf:
+          - $ref: '#/components/schemas/EthnicityEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        gender:
+          oneOf:
+          - $ref: '#/components/schemas/GenderEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        phone_number:
+          type: string
+          maxLength: 20
+    Step2PhysicalMeasurements:
+      type: object
+      properties:
+        height_cm:
+          type: number
+          format: double
+          nullable: true
+        weight_kg:
+          type: number
+          format: double
+          nullable: true
+        bmi:
+          type: number
+          format: double
+          readOnly: true
+      required:
+      - bmi
+    Step3SkinChanges:
+      type: object
+      properties:
+        has_skin_changes:
+          type: boolean
+          nullable: true
+    Step4MenstrualHistory:
+      type: object
+      properties:
+        cycle_length_days:
+          type: integer
+          maximum: 32767
+          minimum: 0
+          nullable: true
+        periods_per_year:
+          type: integer
+          maximum: 32767
+          minimum: 0
+          nullable: true
+        cycle_regularity:
+          oneOf:
+          - $ref: '#/components/schemas/CycleRegularityEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+    Step5Wearable:
+      type: object
+      properties:
+        selected_wearable:
+          oneOf:
+          - $ref: '#/components/schemas/SelectedWearableEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+    Step6RppgRequest:
+      type: object
+      description: |-
+        Placeholder — the real rPPG pipeline will receive a video blob.
+        For now we just flag the baseline as captured.
+      properties:
+        baseline_captured:
+          type: boolean
+      required:
+      - baseline_captured
+    SyncFrequencyEnum:
+      enum:
+      - 5min
+      - 15min
+      - 30min
+      - 1h
+      - 2h
+      type: string
+      description: |-
+        * `5min` - Every 5 min
+        * `15min` - Every 15 min
+        * `30min` - Every 30 min
+        * `1h` - Every hour
+        * `2h` - Every 2 hours
+    TokenRefresh:
+      type: object
+      properties:
+        access:
+          type: string
+          readOnly: true
+        refresh:
+          type: string
+      required:
+      - access
+      - refresh
+    TokenRefreshRequest:
+      type: object
+      properties:
+        refresh:
+          type: string
+          minLength: 1
+      required:
+      - refresh
+    TreatmentPlanRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          minLength: 1
+        medications:
+          nullable: true
+        lifestyle:
+          nullable: true
+        follow_up_days:
+          type: integer
+          maximum: 32767
+          minimum: 0
+        is_active:
+          type: boolean
+      required:
+      - description
+      - title
+    UrgencyEnum:
+      enum:
+      - routine
+      - urgent
+      type: string
+      description: |-
+        * `routine` - routine
+        * `urgent` - urgent
+  securitySchemes:
+    jwtAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+tags:
+- name: Auth
+  description: Registration, login, tokens, email verification
+- name: Onboarding
+  description: Patient onboarding flow (steps 1-7)
+- name: Settings
+  description: Notification, device, privacy settings
+- name: Notifications
+  description: In-app notification management

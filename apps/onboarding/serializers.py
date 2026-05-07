@@ -134,8 +134,10 @@ class Step7PHCRegistrationSerializer(serializers.ModelSerializer):
             "id": str(hcc.id),
             "name": hcc.name,
             "code": hcc.code,
+            "address": hcc.address,
             "state": hcc.state,
             "lga": hcc.lga,
+            "facility_type": hcc.facility_type,
         }
 
 
@@ -213,6 +215,7 @@ class OnboardingProfileSerializer(serializers.ModelSerializer):
             "id": str(hcc.id),
             "name": hcc.name,
             "code": hcc.code,
+            "address": hcc.address,
             "state": hcc.state,
             "lga": hcc.lga,
         }
