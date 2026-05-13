@@ -32,9 +32,13 @@ PHC REMINDER (OnboardingCompleteView):
     - With Celery: fires 24 hours later
     - FREE_TIER: fires inline immediately
 """
+import logging
+
 from django.conf import settings
 from django.utils import timezone
 from rest_framework.permissions import IsAuthenticated
+
+logger = logging.getLogger(__name__)
 from rest_framework.views import APIView
 from drf_spectacular.utils import extend_schema
 
@@ -219,6 +223,13 @@ class OnboardingRppgView(APIView):
         profile.rppg_captured_at       = timezone.now()
         profile.save(update_fields=["rppg_baseline_captured", "rppg_captured_at"])
         OnboardingService.advance_step(request.user, 6)
+
+        # Trigger comprehensive inference now that rPPG data is available
+        try:
+            from apps.predictions.services import ComprehensiveInferenceService
+            ComprehensiveInferenceService.trigger_from_rppg_session(request.user)
+        except Exception:
+            logger.warning("Comprehensive inference after rPPG baseline failed for %s", request.user.email)
 
         return success_response(
             message="rPPG baseline recorded successfully.",

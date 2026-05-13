@@ -529,39 +529,22 @@ class RppgPredictMetabolicCardioView(APIView):
     Proxied to: POST /api/v1/rppg/predict/metabolic-cardio on Node.js
 
     Returns risk scores for: CVD, T2D, Metabolic, HeartFailure.
+    Requires ≥3 rPPG sessions spanning ≥30 days with declining RMSSD trend.
     """
 
     permission_classes = [IsAuthenticated]
-    serializer_class = serializers.Serializer  # No body needed for prediction
+    serializer_class = serializers.Serializer
 
     @extend_schema(
         tags=["rPPG"],
         summary="Predict metabolic and cardiovascular disease risks from rPPG data",
     )
     def post(self, request):
-        # Get latest rPPG session for this user
-        try:
-            session_data, _ = nodejs_get(
-                request.user.id,
-                "/api/v1/rppg/sessions",
-            )
-            
-            # Use latest session data for prediction
-            latest_session = session_data.get('sessions', [{}])[0] if session_data.get('sessions') else {}
-            
-            data, status_code = nodejs_post(
-                request.user.id,
-                "/api/v1/rppg/predict/metabolic-cardio",
-                body=latest_session,
-            )
-            return Response(data, status=status_code)
-        except Exception:
-            # If no session data, make prediction without session context
-            data, status_code = nodejs_post(
-                request.user.id,
-                "/api/v1/rppg/predict/metabolic-cardio",
-            )
-            return Response(data, status=status_code)
+        data, status_code = nodejs_post(
+            request.user.id,
+            "/api/v1/rppg/predict/metabolic-cardio",
+        )
+        return Response(data, status=status_code)
 
 
 class RppgPredictStressReproductiveView(APIView):
@@ -570,39 +553,22 @@ class RppgPredictStressReproductiveView(APIView):
     Proxied to: POST /api/v1/rppg/predict/stress-reproductive on Node.js
 
     Returns risk scores for: Stress, Infertility.
+    Requires ≥3 rPPG sessions spanning ≥7 days.
     """
 
     permission_classes = [IsAuthenticated]
-    serializer_class = serializers.Serializer  # No body needed for prediction
+    serializer_class = serializers.Serializer
 
     @extend_schema(
         tags=["rPPG"],
         summary="Predict stress and reproductive disease risks from rPPG data",
     )
     def post(self, request):
-        # Get latest rPPG session for this user
-        try:
-            session_data, _ = nodejs_get(
-                request.user.id,
-                "/api/v1/rppg/sessions",
-            )
-            
-            # Use latest session data for prediction
-            latest_session = session_data.get('sessions', [{}])[0] if session_data.get('sessions') else {}
-            
-            data, status_code = nodejs_post(
-                request.user.id,
-                "/api/v1/rppg/predict/stress-reproductive",
-                body=latest_session,
-            )
-            return Response(data, status=status_code)
-        except Exception:
-            # If no session data, make prediction without session context
-            data, status_code = nodejs_post(
-                request.user.id,
-                "/api/v1/rppg/predict/stress-reproductive",
-            )
-            return Response(data, status=status_code)
+        data, status_code = nodejs_post(
+            request.user.id,
+            "/api/v1/rppg/predict/stress-reproductive",
+        )
+        return Response(data, status=status_code)
 
 
 class RppgPredictAnomalyView(APIView):
@@ -611,39 +577,22 @@ class RppgPredictAnomalyView(APIView):
     Proxied to: POST /api/v1/rppg/predict/anomaly on Node.js
 
     Returns anomaly detection results for the rPPG session.
+    Requires at least 1 valid rPPG session.
     """
 
     permission_classes = [IsAuthenticated]
-    serializer_class = serializers.Serializer  # No body needed for prediction
+    serializer_class = serializers.Serializer
 
     @extend_schema(
         tags=["rPPG"],
         summary="Run anomaly detection on rPPG data",
     )
     def post(self, request):
-        # Get latest rPPG session for this user
-        try:
-            session_data, _ = nodejs_get(
-                request.user.id,
-                "/api/v1/rppg/sessions",
-            )
-            
-            # Use latest session data for prediction
-            latest_session = session_data.get('sessions', [{}])[0] if session_data.get('sessions') else {}
-            
-            data, status_code = nodejs_post(
-                request.user.id,
-                "/api/v1/rppg/predict/anomaly",
-                body=latest_session,
-            )
-            return Response(data, status=status_code)
-        except Exception:
-            # If no session data, make prediction without session context
-            data, status_code = nodejs_post(
-                request.user.id,
-                "/api/v1/rppg/predict/anomaly",
-            )
-            return Response(data, status=status_code)
+        data, status_code = nodejs_post(
+            request.user.id,
+            "/api/v1/rppg/predict/anomaly",
+        )
+        return Response(data, status=status_code)
 
 
 class RppgSessionsView(APIView):

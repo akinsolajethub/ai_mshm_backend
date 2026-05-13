@@ -647,7 +647,11 @@ class ComprehensiveInferenceService:
         # Get all unique diseases across all models
         all_diseases = set()
         for model_name, predictions in model_predictions.items():
+            if not isinstance(predictions, dict):
+                continue
             for disease in predictions.keys():
+                if disease == "_meta":
+                    continue
                 normalized = disease_normalization.get(disease, disease)
                 all_diseases.add(normalized)
 
@@ -807,9 +811,17 @@ class ComprehensiveInferenceService:
         menstrual = model_predictions.get("menstrual", {})
         quality["menstrual"] = 1.0 if menstrual else 0.0
 
-        # rPPG model: based on sessions
+        # rPPG model: based on session count & days span
         rppg = model_predictions.get("rppg", {})
-        quality["rppg"] = 1.0 if rppg else 0.0
+        rppg_meta = rppg.get("_meta", {}) if isinstance(rppg, dict) else {}
+        sessions_used = rppg_meta.get("sessions_used", 0)
+        days_span = rppg_meta.get("days_span", 0)
+        if sessions_used > 0 and days_span > 0:
+            session_score = min(sessions_used / 30, 1.0)
+            span_score = min(days_span / 30, 1.0)
+            quality["rppg"] = round((session_score * 0.5 + span_score * 0.5), 4)
+        else:
+            quality["rppg"] = 0.0
 
         # Mood model: based on weekly tools completion
         mood = model_predictions.get("mood", {})
@@ -911,33 +923,83 @@ class ComprehensiveInferenceService:
 
     @staticmethod
     def _run_rppg_model(user: User) -> dict:
-        """Run rPPG/HRV model from Node.js."""
+        """Run rPPG/HRV model from Node.js.
+
+        Handles guardrail responses:
+        - 422 with INSUFFICIENT_RPPG_SESSIONS / INSUFFICIENT_RPPG_SPAN → empty predictions
+        - Overridden CVD/Metabolic scores (non-declining trend) → risk_score = 0
+        """
         try:
             from apps.ml_proxy.proxy import nodejs_post
 
             predictions = {}
+            rppg_meta = {"sessions_used": 0, "days_span": 0, "reliability": {}}
 
             # Metabolic/Cardio predictions
-            metabolic_data, _ = nodejs_post(user.id, "/api/v1/rppg/predict/metabolic-cardio")
-            if metabolic_data and metabolic_data.get("success"):
-                preds = metabolic_data.get("data", {}).get("predictions", {})
-                for disease, pred in preds.items():
-                    predictions[disease] = {
-                        "risk_score": pred.get("risk_score", 0),
-                        "severity": pred.get("severity", "Minimal"),
-                    }
+            metabolic_data, status = nodejs_post(user.id, "/api/v1/rppg/predict/metabolic-cardio")
+            if metabolic_data:
+                if metabolic_data.get("success"):
+                    preds = metabolic_data.get("data", {}).get("predictions", {})
+                    rel = metabolic_data.get("data", {}).get("reliability", {})
+                    rppg_meta["reliability"] = rel
+                    rppg_meta["sessions_used"] = max(
+                        rppg_meta["sessions_used"], rel.get("sessions_used", 0)
+                    )
+                    rppg_meta["days_span"] = max(
+                        rppg_meta["days_span"], rel.get("days_span", 0)
+                    )
+                    for disease, pred in preds.items():
+                        risk_score = pred.get("risk_score")
+                        if risk_score is not None or pred.get("insufficient_trend_data"):
+                            predictions[disease] = {
+                                "risk_score": risk_score if risk_score is not None else 0,
+                                "severity": pred.get("severity", "Minimal"),
+                                "warning": pred.get("warning"),
+                                "reliability_warning": pred.get("reliability_warning"),
+                            }
+                else:
+                    logger.info(
+                        "rPPG metabolic-cardio insufficient for %s: %s",
+                        user.email,
+                        metabolic_data.get("message", ""),
+                    )
 
             # Stress/Reproductive predictions
-            reproductive_data, _ = nodejs_post(user.id, "/api/v1/rppg/predict/stress-reproductive")
-            if reproductive_data and reproductive_data.get("success"):
-                preds = reproductive_data.get("data", {}).get("predictions", {})
-                for disease, pred in preds.items():
-                    predictions[disease] = {
-                        "risk_score": pred.get("risk_score", 0),
-                        "severity": pred.get("severity", "Minimal"),
-                    }
+            reproductive_data, status = nodejs_post(
+                user.id, "/api/v1/rppg/predict/stress-reproductive"
+            )
+            if reproductive_data:
+                if reproductive_data.get("success"):
+                    preds = reproductive_data.get("data", {}).get("predictions", {})
+                    rel = reproductive_data.get("data", {}).get("reliability", {})
+                    rppg_meta["reliability"] = rel
+                    rppg_meta["sessions_used"] = max(
+                        rppg_meta["sessions_used"], rel.get("sessions_used", 0)
+                    )
+                    rppg_meta["days_span"] = max(
+                        rppg_meta["days_span"], rel.get("days_span", 0)
+                    )
+                    for disease, pred in preds.items():
+                        risk_score = pred.get("risk_score")
+                        predictions[disease] = {
+                            "risk_score": risk_score if risk_score is not None else 0,
+                            "severity": pred.get("severity", "Minimal"),
+                            "warning": pred.get("warning"),
+                            "reliability_warning": pred.get("reliability_warning"),
+                        }
+                else:
+                    logger.info(
+                        "rPPG stress-reproductive insufficient for %s: %s",
+                        user.email,
+                        reproductive_data.get("message", ""),
+                    )
 
-            return predictions
+            # Attach metadata for quality scoring only when disease predictions exist
+            disease_keys = [k for k in predictions if not k.startswith("_")]
+            if disease_keys:
+                predictions["_meta"] = rppg_meta
+                return predictions
+            return {}
         except Exception as e:
             logger.warning("rPPG model failed for %s: %s", user.email, e)
         return {}
